@@ -256,7 +256,7 @@
                                     </div>
                                     <button onclick="resetPrompt()" id="reset-prompt-btn" class="text-xs text-purple-600 dark:text-purple-400 hover:underline hidden transition-all" data-i18n="aiReset">Standard wiederherstellen</button>
                                 </div>
-                                <textarea id="ai-prompt" rows="3" disabled class="w-full px-3 py-2 border border-slate-300 rounded-md text-xs opacity-50 dark:bg-gemini-bg dark:text-gemini-text">Erstelle einen knackigen, SEO-optimierten Titel und eine strukturierte Beschreibung für Makerworld. Berücksichtige das Problem, Zielgruppe und Nutzen.</textarea>
+                                <textarea id="ai-prompt" rows="3" disabled class="w-full px-3 py-2 border border-slate-300 rounded-md text-xs opacity-50 dark:bg-gemini-bg dark:text-gemini-text"></textarea>
                             </div>
                             <button id="generate-btn" onclick="generateTexts()" class="w-full mt-2 bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-md text-sm font-bold flex items-center justify-center gap-2"><i data-lucide="sparkles" class="w-4 h-4"></i> <span data-i18n="aiGen">Texte generieren</span></button>
                         </div>
@@ -269,6 +269,7 @@
     <script>
         // 1. Globale Variablen GANZ NACH OBEN
         const API_URL = ''; 
+        const DEFAULT_AI_PROMPT = "Create a catchy, SEO-optimized title and a structured description for Makerworld. Consider the problem, target audience, and benefits.";
         let allProjects = [];
         let editingProjectId = null; 
         let currentFiles = [];
@@ -780,7 +781,7 @@
         }
 
         function resetPrompt() {
-            document.getElementById('ai-prompt').value = "Erstelle einen knackigen, SEO-optimierten Titel und eine strukturierte Beschreibung für Makerworld. Berücksichtige das Problem, Zielgruppe und Nutzen.";
+            document.getElementById('ai-prompt').value = DEFAULT_AI_PROMPT;
         }
 
         async function generateTexts() {
@@ -862,6 +863,7 @@
             }
         }
 
+        resetPrompt(); // Initialisiert das Feld sauber beim ersten Laden der Seite
         fetchAndRenderModels();
     </script>
 </body>
