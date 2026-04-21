@@ -221,8 +221,9 @@ async def generate_texts_with_claude(request: AIGenerationRequest):
     full_prompt = f"""{request.prompt_template}\n\nKONTEXT ZUM 3D-MODELL:\n- Gelöstes Problem: {request.problem}\n- Zielgruppe: {request.target_audience}\n- Besondere Nutzenargumente: {request.features}\n\nBitte antworte ausschließlich im folgenden Format:\nTITEL: [Dein generierter Titel]\nBESCHREIBUNG:\n[Deine generierte Beschreibung]"""
 
     response = client.messages.create(
-        model="claude-haiku-4-5-20251001",
-        max_tokens=1000,
+        # model="claude-haiku-4-5-20251001",
+        model="claude-sonnet-4-6",
+        max_tokens=2000,
         temperature=0.7,
         messages=[{"role": "user", "content": full_prompt}]
     )
