@@ -1,0 +1,15 @@
+Environments
+
+venv/
+.env
+
+Cache
+
+pycache/
+*.pyc
+
+Daten & Uploads (Sollen beim Nutzer bleiben, nicht ins Repo!)
+
+uploads/
+data/
+ai3dhub.db

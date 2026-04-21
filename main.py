@@ -14,7 +14,11 @@ from pathlib import Path
 # ---------------------------------------------------------
 # 1. Datenbank Setup (SQLite via SQLAlchemy)
 # ---------------------------------------------------------
-SQLALCHEMY_DATABASE_URL = "sqlite:///./ai3dhub.db"
+# NEU: Wir packen die DB in den 'data' Ordner für Docker-Volumes
+DATA_DIR = Path("data")
+DATA_DIR.mkdir(exist_ok=True)
+SQLALCHEMY_DATABASE_URL = "sqlite:///./data/ai3dhub.db"
+
 engine = create_engine(SQLALCHEMY_DATABASE_URL, connect_args={"check_same_thread": False})
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()

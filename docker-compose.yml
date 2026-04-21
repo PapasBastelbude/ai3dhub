@@ -1,0 +1,16 @@
+version: '3.8'
+
+services:
+  ai3dhub:
+    build: .
+    container_name: ai3dhub
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      # Hier wird der Key aus einer lokalen .env Datei geladen
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+    volumes:
+      # Links = Deine Festplatte | Rechts = Im Container
+      - ./uploads:/app/uploads
+      - ./data:/app/data
