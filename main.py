@@ -1,6 +1,6 @@
 from fastapi import FastAPI, HTTPException, File, UploadFile, Depends
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles 
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from sqlalchemy import create_engine, Column, Integer, String, Text
 from sqlalchemy.orm import declarative_base, sessionmaker, Session
@@ -35,8 +35,8 @@ class Project(Base):
     category = Column(String, nullable=True, default="Allgemein")
     status = Column(String, nullable=True)
     notes = Column(Text, nullable=True)
-    cover_image = Column(String, nullable=True) 
-    files_json = Column(Text, nullable=True, default="[]") 
+    cover_image = Column(String, nullable=True)
+    files_json = Column(Text, nullable=True, default="[]")
 
 Base.metadata.create_all(bind=engine)
 
@@ -77,10 +77,10 @@ class ProjectCreate(BaseModel):
     hardware: str | None = None
     description: str | None = None
     category: str | None = "Allgemein"
-    status: str | None = None 
-    notes: str | None = None  
+    status: str | None = None
+    notes: str | None = None
     cover_image: str | None = None
-    files_json: str | None = "[]" 
+    files_json: str | None = "[]"
 
 def get_db():
     db = SessionLocal()
@@ -93,7 +93,7 @@ def get_db():
 def process_project_files(internal_title: str, files_json_str: str):
     if not files_json_str or files_json_str == "[]":
         return files_json_str
-        
+
     try:
         files = json.loads(files_json_str)
     except:
@@ -103,26 +103,40 @@ def process_project_files(internal_title: str, files_json_str: str):
     safe_title = re.sub(r'[^a-zA-Z0-9_\-]', '_', internal_title).strip('_')
     if not safe_title:
         safe_title = "projekt"
-        
+
     target_dir = UPLOAD_DIR / safe_title
     target_dir.mkdir(exist_ok=True)
-    
+
     for file in files:
         path_str = file.get("path", "")
         # Wenn die Datei noch im Temp-Ordner liegt, verschieben wir sie
         if "/uploads/temp/" in path_str:
-            filename = file["filename"]
+            # Saniert den Dateinamen um Path-Traversal zu verhindern
+            filename = os.path.basename(file.get("filename", ""))
+            if not filename:
+                continue
+
             source_path = TEMP_DIR / filename
             target_path = target_dir / filename
-            
-            if source_path.exists():
-                if target_path.exists():
-                    target_path.unlink() # Überschreibt falls vorhanden (Windows Fix)
-                shutil.move(str(source_path), str(target_path))
-                
+
+            if source_path.exists() and source_path.is_file():
+                # Zielpfad explizit löschen, falls er bereits existiert (wichtig für Windows-Overwrite)
+                if target_path.exists() and target_path.is_file():
+                    try:
+                        target_path.unlink(missing_ok=True)
+                    except OSError:
+                        pass
+
+                try:
+                    shutil.move(str(source_path), str(target_path))
+                except Exception:
+                    # Falls das Verschieben fehlschlägt (z.B. Berechtigungen), überspringen wir diesen Eintrag
+                    continue
+
             # Pfad für die Datenbank und das Frontend anpassen
+            file["filename"] = filename
             file["path"] = f"/uploads/{safe_title}/{filename}"
-            
+
     return json.dumps(files)
 
 # ---------------------------------------------------------
@@ -134,15 +148,20 @@ async def upload_files(files: list[UploadFile] = File(...)):
     """ Speichert Dateien vorübergehend im temp Ordner """
     uploaded_data = []
     for file in files:
-        file_location = TEMP_DIR / file.filename
+        # Saniert den Dateinamen um Path-Traversal zu verhindern
+        filename = os.path.basename(file.filename)
+        if not filename:
+            continue
+
+        file_location = TEMP_DIR / filename
         with open(file_location, "wb+") as file_object:
             shutil.copyfileobj(file.file, file_object)
-        
+
         size_mb = round(os.path.getsize(file_location) / (1024 * 1024), 2)
-        
+
         uploaded_data.append({
-            "filename": file.filename, 
-            "path": f"/uploads/temp/{file.filename}", 
+            "filename": filename,
+            "path": f"/uploads/temp/{filename}",
             "size_mb": size_mb
         })
     return {"uploaded": uploaded_data}
@@ -156,7 +175,7 @@ async def create_project(project: ProjectCreate, db: Session = Depends(get_db)):
     try:
         # Dateien verschieben, bevor wir in die DB speichern!
         project.files_json = process_project_files(project.internal_title, project.files_json)
-        
+
         db_project = Project(**project.model_dump())
         db.add(db_project)
         db.commit()
@@ -172,13 +191,13 @@ async def update_project(project_id: int, project: ProjectCreate, db: Session = 
         db_project = db.query(Project).filter(Project.id == project_id).first()
         if not db_project:
             raise HTTPException(status_code=404, detail="Projekt nicht gefunden")
-        
+
         # Dateien verschieben, bevor wir in die DB speichern!
         project.files_json = process_project_files(project.internal_title, project.files_json)
-        
+
         for key, value in project.model_dump().items():
             setattr(db_project, key, value)
-            
+
         db.commit()
         return {"message": "Projekt erfolgreich aktualisiert"}
     except Exception as e:
@@ -192,16 +211,16 @@ async def delete_project(project_id: int, db: Session = Depends(get_db)):
         db_project = db.query(Project).filter(Project.id == project_id).first()
         if not db_project:
             raise HTTPException(status_code=404, detail="Projekt nicht gefunden")
-        
+
         # Festplatten-Ordner löschen
         safe_title = re.sub(r'[^a-zA-Z0-9_\-]', '_', db_project.internal_title).strip('_')
         if not safe_title:
             safe_title = "projekt"
-        
+
         target_dir = UPLOAD_DIR / safe_title
         if target_dir.exists() and target_dir.is_dir():
             shutil.rmtree(target_dir) # Löscht den Ordner und alle Inhalte
-            
+
         # Datenbankeintrag löschen
         db.delete(db_project)
         db.commit()
