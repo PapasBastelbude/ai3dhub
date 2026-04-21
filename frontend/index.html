@@ -1,0 +1,862 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI-3D-Hub</title>
+    
+    <!-- 1. Verhindert Flackern (FOUC) beim Neuladen - Muss GANZ OBEN bleiben -->
+    <script>
+        if (localStorage.getItem('ai3dhub_theme') === 'dark' || (!('ai3dhub_theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+            document.documentElement.classList.add('dark');
+        }
+    </script>
+    
+    <!-- 2. Tailwind Core laden -->
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <!-- 3. Tailwind Config zwingend NACH dem Script definieren -->
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        gemini: { bg: '#131314', surface: '#1E1F20', border: '#333537', hover: '#444746', text: '#e3e3e3', muted: '#c4c7c5' }
+                    }
+                }
+            }
+        };
+    </script>
+    
+    <script src="https://unpkg.com/lucide@latest"></script>
+    
+    <style>
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: #f1f5f9; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+        .dark ::-webkit-scrollbar-track { background: #131314; }
+        .dark ::-webkit-scrollbar-thumb { background: #333537; }
+    </style>
+    
+    <script>
+        // --- Core UI & Theme Logik ---
+        function toggleDarkMode() {
+            document.documentElement.classList.toggle('dark');
+            const isDark = document.documentElement.classList.contains('dark');
+            localStorage.setItem('ai3dhub_theme', isDark ? 'dark' : 'light');
+        }
+
+        let isEnglish = localStorage.getItem('ai3dhub_lang') === 'en';
+        
+        function toggleLanguage() {
+            isEnglish = !isEnglish;
+            localStorage.setItem('ai3dhub_lang', isEnglish ? 'en' : 'de');
+            document.getElementById('lang-switch').innerText = isEnglish ? 'DE' : 'EN';
+            applyTranslations();
+        }
+
+        function togglePromptEdit() {
+            const promptArea = document.getElementById('ai-prompt');
+            const checkbox = document.getElementById('edit-prompt');
+            const resetBtn = document.getElementById('reset-prompt-btn');
+            promptArea.disabled = !checkbox.checked;
+            promptArea.classList.toggle('opacity-50', !checkbox.checked);
+            resetBtn.classList.toggle('hidden', !checkbox.checked);
+        }
+
+        // Globaler Klick-Listener um das Filter-Menü zu schließen
+        document.addEventListener('click', (e) => {
+            const btn = document.getElementById('filter-btn');
+            const menu = document.getElementById('filter-menu');
+            if (btn && menu && !btn.contains(e.target) && !menu.contains(e.target)) {
+                menu.classList.add('hidden');
+            }
+        });
+    </script>
+</head>
+<body class="bg-slate-50 text-slate-800 dark:bg-gemini-bg dark:text-gemini-text h-screen flex overflow-hidden font-sans">
+
+    <!-- Sidebar -->
+    <aside class="w-64 bg-white dark:bg-gemini-surface border-r border-slate-200 dark:border-gemini-border flex flex-col h-full flex-shrink-0">
+        <div class="p-4 border-b border-slate-200 dark:border-gemini-border flex items-center gap-3">
+            <div class="h-10 w-10 rounded-lg overflow-hidden">
+                <img src="/logo.jpg" alt="AI 3D Hub Logo" class="w-full h-full object-cover">
+            </div>
+            <h1 class="font-bold text-xl tracking-tight">AI-3D-Hub</h1>
+        </div>
+
+        <nav class="flex-1 overflow-y-auto p-4 space-y-6">
+            <div>
+                <h2 class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3" data-i18n="categories">Kategorien</h2>
+                <ul id="sidebar-categories" class="space-y-1"></ul>
+            </div>
+            <div>
+                <h2 class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3" data-i18n="tags">Deine Tags</h2>
+                <ul id="sidebar-tags" class="space-y-1"></ul>
+            </div>
+        </nav>
+        
+        <div class="p-4 border-t border-slate-200 dark:border-gemini-border">
+            <button onclick="openNewProject()" class="w-full flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white dark:bg-blue-500 dark:hover:bg-blue-400 dark:text-slate-900 px-4 py-2 rounded-md text-sm font-medium transition-colors shadow-sm">
+                <i data-lucide="upload" class="w-4 h-4"></i> <span data-i18n="newModel">Neues Modell</span>
+            </button>
+        </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="flex-1 flex flex-col h-full overflow-hidden relative">
+        <header class="bg-white dark:bg-gemini-surface border-b border-slate-200 dark:border-gemini-border p-4 flex items-center justify-between sticky top-0 z-10 flex-shrink-0">
+            <div class="relative w-96">
+                <i data-lucide="search" class="w-5 h-5 absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400"></i>
+                <input type="text" data-i18n-placeholder="search" placeholder="Suche Modelle, Tags, KI-Beschreibungen..." class="w-full pl-10 pr-4 py-2 border border-slate-300 dark:border-gemini-border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm dark:bg-gemini-bg dark:text-gemini-text">
+            </div>
+            <div class="flex items-center gap-5">
+                <button onclick="toggleLanguage()" class="text-sm font-bold text-slate-500 hover:text-slate-800 dark:text-gemini-muted dark:hover:text-white transition-colors"><span id="lang-switch">EN</span></button>
+                <button onclick="toggleDarkMode()" class="text-slate-500 hover:text-slate-800 dark:text-gemini-muted dark:hover:text-white transition-colors">
+                    <i data-lucide="moon" class="w-5 h-5 block dark:hidden"></i>
+                    <i data-lucide="sun" class="w-5 h-5 hidden dark:block"></i>
+                </button>
+            </div>
+        </header>
+
+        <!-- GRID VIEW -->
+        <div id="grid-view" class="flex-1 overflow-y-auto p-6 flex flex-col">
+            <div class="flex justify-between items-end mb-6">
+                <div>
+                    <h2 id="grid-view-title" class="text-2xl font-bold text-slate-800 dark:text-gemini-text" data-i18n="allModels">Alle Modelle</h2>
+                    <p id="project-count" class="text-sm text-slate-500 dark:text-gemini-muted mt-1" data-i18n="loading">Lade Projekte...</p>
+                </div>
+                <div class="flex gap-2 text-sm items-center relative">
+                    <button id="sort-btn" onclick="toggleSort()" class="px-3 py-1.5 bg-white dark:bg-gemini-surface border border-slate-300 dark:border-gemini-border rounded-md text-slate-600 dark:text-gemini-text hover:bg-slate-50 dark:hover:bg-gemini-hover transition-colors min-w-[200px] text-left">
+                        <span data-i18n="sortDesc">Sortieren: Neu (absteigend)</span>
+                    </button>
+                    
+                    <div class="relative">
+                        <button id="filter-btn" onclick="toggleFilterMenu()" class="px-3 py-1.5 bg-white dark:bg-gemini-surface border border-slate-300 dark:border-gemini-border rounded-md text-slate-600 dark:text-gemini-text hover:bg-slate-50 dark:hover:bg-gemini-hover transition-colors flex items-center gap-2">
+                            <i data-lucide="filter" class="w-4 h-4"></i>
+                            <span id="active-status-filter" class="hidden bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-400 px-1.5 py-0.5 rounded-sm text-[10px] font-bold uppercase tracking-wide"></span>
+                        </button>
+                        <div id="filter-menu" class="hidden absolute right-0 mt-2 w-48 bg-white dark:bg-gemini-surface border border-slate-200 dark:border-gemini-border rounded-md shadow-xl z-50 overflow-hidden">
+                            <div class="px-3 py-2 text-xs font-bold text-slate-400 bg-slate-50 dark:bg-[#1A1A1C] border-b border-slate-100 dark:border-gemini-border uppercase tracking-wider" data-i18n="statusFilter">Status-Filter</div>
+                            <ul id="filter-status-list" class="py-1 max-h-64 overflow-y-auto"></ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div id="model-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 pb-10"></div>
+        </div>
+
+        <!-- DETAIL VIEW (Editor) -->
+        <div id="detail-view" class="hidden flex-1 overflow-y-auto bg-slate-50 dark:bg-gemini-bg p-6 flex flex-col">
+            <div class="flex justify-between items-center mb-6">
+                <div class="flex items-center gap-4">
+                    <button onclick="showGridView()" class="p-2 text-slate-500 hover:bg-slate-200 dark:hover:bg-gemini-hover rounded-full transition-colors"><i data-lucide="arrow-left" class="w-5 h-5"></i></button>
+                    <div>
+                        <h2 id="editor-title" class="text-2xl font-bold text-slate-800 dark:text-gemini-text" data-i18n="newProject">Neues Projekt anlegen</h2>
+                        <p class="text-sm text-slate-500 dark:text-gemini-muted mt-1" data-i18n="editorSub">Lade Dateien hoch und ergänze Metadaten.</p>
+                    </div>
+                </div>
+                <div class="flex gap-3">
+                    <button id="delete-project-btn" onclick="deleteProject()" class="hidden px-4 py-2 bg-red-50 text-red-600 hover:bg-red-100 dark:bg-red-900/20 dark:hover:bg-red-900/40 rounded-md text-sm font-medium transition-colors flex items-center gap-2">
+                        <i data-lucide="trash-2" class="w-4 h-4"></i> <span data-i18n="btnDelete">Löschen</span>
+                    </button>
+                    <button onclick="showGridView()" class="px-4 py-2 bg-white dark:bg-gemini-surface border border-slate-300 dark:border-gemini-border rounded-md text-slate-700 dark:text-gemini-text text-sm hover:bg-slate-50 dark:hover:bg-gemini-hover transition-colors" data-i18n="btnCancel">Abbrechen</button>
+                    <button id="save-project-btn" onclick="saveProject()" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white dark:bg-blue-500 dark:hover:bg-blue-400 dark:text-slate-900 rounded-md text-sm font-medium flex items-center gap-2 shadow-sm transition-colors">
+                        <i data-lucide="save" class="w-4 h-4"></i> <span data-i18n="btnSave">Speichern</span>
+                    </button>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 pb-10">
+                <!-- Linke Spalte -->
+                <div class="lg:col-span-2 space-y-6">
+                    <div class="bg-white dark:bg-gemini-surface border border-slate-200 dark:border-gemini-border rounded-xl p-5">
+                        <h3 class="font-semibold text-lg text-slate-800 dark:text-gemini-text mb-4" data-i18n="filesTitle">Dateien & Upload</h3>
+                        <div id="drop-zone" class="relative border-2 border-dashed border-slate-300 dark:border-gemini-border rounded-lg p-10 text-center hover:bg-slate-50 dark:hover:bg-gemini-hover transition-colors cursor-pointer mb-6 group">
+                            <input type="file" id="file-input" multiple class="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10">
+                            <div class="bg-blue-50 dark:bg-blue-900/30 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
+                                <i data-lucide="upload-cloud" class="w-8 h-8 text-blue-600 dark:text-blue-400"></i>
+                            </div>
+                            <p id="drop-text" class="text-slate-700 dark:text-gemini-text font-medium" data-i18n="dropFiles">Dateien hierher ziehen oder klicken</p>
+                        </div>
+                        <div class="space-y-6">
+                            <div><h4 class="text-xs font-bold text-slate-400 uppercase mb-2"><i data-lucide="box" class="w-4 h-4 inline"></i> <span data-i18n="h3d">3D Modelle</span></h4><ul id="list-3d" class="space-y-2"></ul></div>
+                            <div><h4 class="text-xs font-bold text-slate-400 uppercase mb-2"><i data-lucide="file-archive" class="w-4 h-4 inline"></i> <span data-i18n="hArchive">Archive</span></h4><ul id="list-archives" class="space-y-2"></ul></div>
+                            <div><h4 class="text-xs font-bold text-slate-400 uppercase mb-2"><i data-lucide="image" class="w-4 h-4 inline"></i> <span data-i18n="hImg">Bilder</span></h4><ul id="list-images" class="space-y-2"></ul></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Rechte Spalte -->
+                <div class="space-y-6">
+                    <div class="bg-white dark:bg-gemini-surface border border-slate-200 dark:border-gemini-border rounded-xl p-5 shadow-sm">
+                        <h3 class="font-semibold text-lg text-slate-800 dark:text-gemini-text mb-4" data-i18n="metaTitle">Projekt Metadaten</h3>
+                        <div class="space-y-4">
+                            <div>
+                                <label class="block text-sm font-medium text-slate-700 dark:text-gemini-muted mb-1" data-i18n="lIntTitle">Interner Projekttitel *</label>
+                                <input type="text" id="internal-title" class="w-full px-3 py-2 border border-slate-300 dark:border-gemini-border rounded-md focus:ring-2 focus:ring-blue-500 text-sm dark:bg-gemini-bg dark:text-gemini-text">
+                            </div>
+                            <div class="flex gap-4">
+                                <div class="w-1/2">
+                                    <label class="block text-sm font-medium text-slate-700 dark:text-gemini-muted mb-1" data-i18n="lCat">Kategorie</label>
+                                    <input type="text" id="category" class="w-full px-3 py-2 border border-slate-300 dark:border-gemini-border rounded-md focus:ring-2 focus:ring-blue-500 text-sm dark:bg-gemini-bg dark:text-gemini-text">
+                                </div>
+                                <div class="w-1/2 flex flex-col">
+                                    <label class="block text-sm font-medium text-slate-700 dark:text-gemini-muted mb-1" data-i18n="lStatus">Status</label>
+                                    <div id="status-selector" class="flex flex-wrap gap-2 items-center p-2 border border-slate-300 dark:border-gemini-border rounded-md min-h-[42px] dark:bg-gemini-bg"></div>
+                                </div>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-slate-700 dark:text-gemini-muted mb-1" data-i18n="lPubTitle">Öffentlicher Titel <i data-lucide="sparkles" class="w-3 h-3 text-purple-500 inline"></i></label>
+                                <input type="text" id="public-title" class="w-full px-3 py-2 border border-slate-300 dark:border-gemini-border rounded-md focus:ring-2 focus:ring-blue-500 text-sm dark:bg-gemini-bg dark:text-gemini-text">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-slate-700 dark:text-gemini-muted mb-1" data-i18n="lTags">Tags (Komma getrennt)</label>
+                                <input type="text" id="tags" class="w-full px-3 py-2 border border-slate-300 dark:border-gemini-border rounded-md focus:ring-2 focus:ring-blue-500 text-sm dark:bg-gemini-bg dark:text-gemini-text">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-slate-700 dark:text-gemini-muted mb-1" data-i18n="lMat">Material & Hardware</label>
+                                <div class="flex gap-2">
+                                    <input type="text" id="material" data-i18n-placeholder="pMat" placeholder="Material" class="w-1/3 px-3 py-2 border border-slate-300 dark:border-gemini-border rounded-md text-sm dark:bg-gemini-bg dark:text-gemini-text">
+                                    <input type="text" id="hardware" data-i18n-placeholder="pHW" placeholder="Hardware..." class="w-2/3 px-3 py-2 border border-slate-300 dark:border-gemini-border rounded-md text-sm dark:bg-gemini-bg dark:text-gemini-text">
+                                </div>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-slate-700 dark:text-gemini-muted mb-1" data-i18n="lDesc">Beschreibung <i data-lucide="sparkles" class="w-3 h-3 text-purple-500 inline"></i></label>
+                                <textarea id="public-description" rows="4" class="w-full px-3 py-2 border border-slate-300 dark:border-gemini-border rounded-md focus:ring-2 focus:ring-blue-500 text-sm dark:bg-gemini-bg dark:text-gemini-text resize-y"></textarea>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-slate-700 dark:text-gemini-muted mb-1" data-i18n="lNotes">Notizen (Intern)</label>
+                                <textarea id="notes" rows="3" class="w-full px-3 py-2 border border-slate-300 dark:border-gemini-border rounded-md focus:ring-2 focus:ring-blue-500 text-sm dark:bg-gemini-bg dark:text-gemini-text resize-y"></textarea>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- KI Assistent -->
+                    <div class="bg-gradient-to-b from-purple-50 to-white dark:from-[#2a1c3d] dark:to-gemini-surface border border-purple-200 dark:border-purple-900/50 rounded-xl p-5 relative overflow-hidden">
+                        <h3 class="font-semibold text-lg text-slate-800 dark:text-gemini-text mb-4 flex items-center gap-2 relative z-10"><i data-lucide="bot" class="w-5 h-5 text-purple-500"></i> <span data-i18n="aiTitle">KI-Assistent</span></h3>
+                        <div class="space-y-4 relative z-10">
+                            <div><label class="block text-sm text-slate-700 dark:text-gemini-muted mb-1" data-i18n="aiProb">Problem</label><input type="text" id="ai-problem" class="w-full px-3 py-2 border border-slate-300 dark:border-gemini-border rounded-md text-sm dark:bg-gemini-bg dark:text-gemini-text"></div>
+                            <div><label class="block text-sm text-slate-700 dark:text-gemini-muted mb-1" data-i18n="aiAud">Zielgruppe</label><input type="text" id="ai-audience" class="w-full px-3 py-2 border border-slate-300 dark:border-gemini-border rounded-md text-sm dark:bg-gemini-bg dark:text-gemini-text"></div>
+                            <div><label class="block text-sm text-slate-700 dark:text-gemini-muted mb-1" data-i18n="aiBen">Nutzen</label><input type="text" id="ai-features" class="w-full px-3 py-2 border border-slate-300 dark:border-gemini-border rounded-md text-sm dark:bg-gemini-bg dark:text-gemini-text"></div>
+                            
+                            <div class="pt-3 border-t border-purple-100 dark:border-purple-900/30">
+                                <div class="flex items-center justify-between mb-2">
+                                    <div class="flex items-center gap-2">
+                                        <input type="checkbox" id="edit-prompt" onchange="togglePromptEdit()" class="rounded w-4 h-4">
+                                        <label for="edit-prompt" class="text-sm cursor-pointer" data-i18n="aiEdit">Prompt anpassen</label>
+                                    </div>
+                                    <button onclick="resetPrompt()" id="reset-prompt-btn" class="text-xs text-purple-600 dark:text-purple-400 hover:underline hidden transition-all" data-i18n="aiReset">Standard wiederherstellen</button>
+                                </div>
+                                <textarea id="ai-prompt" rows="3" disabled class="w-full px-3 py-2 border border-slate-300 rounded-md text-xs opacity-50 dark:bg-gemini-bg dark:text-gemini-text">Erstelle einen knackigen, SEO-optimierten Titel und eine strukturierte Beschreibung für Makerworld. Berücksichtige das Problem, Zielgruppe und Nutzen.</textarea>
+                            </div>
+                            <button id="generate-btn" onclick="generateTexts()" class="w-full mt-2 bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-md text-sm font-bold flex items-center justify-center gap-2"><i data-lucide="sparkles" class="w-4 h-4"></i> <span data-i18n="aiGen">Texte generieren</span></button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        // 1. Globale Variablen GANZ NACH OBEN
+        const API_URL = ''; 
+        let allProjects = [];
+        let editingProjectId = null; 
+        let currentFiles = [];
+        let currentCoverImage = null;
+        let currentFilter = { type: 'all', value: null };
+        let sortMode = 'new_desc'; 
+        let statusFilter = null;
+
+        // 2. Lucide Icons initiieren
+        lucide.createIcons();
+        
+        // --- TRANSLATION DICTIONARY ---
+        const translations = {
+            de: {
+                categories: "Kategorien", tags: "Deine Tags", newModel: "Neues Modell", 
+                search: "Suche Modelle, Tags, KI-Beschreibungen...", allModels: "Alle Modelle", loading: "Lade Projekte...",
+                sortDesc: "Sortieren: Neu (absteigend)", sortAsc: "Sortieren: Neu (aufsteigend)", sortStat: "Sortieren: Status (A-Z)",
+                statusFilter: "Status-Filter", showAll: "Alle anzeigen", noProj: "Keine Projekte in dieser Ansicht gefunden.",
+                newProject: "Neues Projekt anlegen", editProject: "Projekt bearbeiten", editorSub: "Lade Dateien hoch und ergänze Metadaten.",
+                btnDelete: "Löschen", btnCancel: "Abbrechen", btnSave: "Speichern", btnSaving: "Speichere...", btnSaved: "Gespeichert!",
+                filesTitle: "Dateien & Upload", dropFiles: "Dateien hierher ziehen oder klicken", uploadLoad: "Lade hoch...",
+                h3d: "3D Modelle", hArchive: "Archive", hImg: "Bilder",
+                metaTitle: "Projekt Metadaten", lIntTitle: "Interner Projekttitel *", lCat: "Kategorie", lStatus: "Status",
+                lPubTitle: "Öffentlicher Titel ", lTags: "Tags (Komma getrennt)", lMat: "Material & Hardware", pMat: "Material", pHW: "Hardware...",
+                lDesc: "Beschreibung ", lNotes: "Notizen (Intern)",
+                aiTitle: "KI-Assistent", aiProb: "Problem", aiAud: "Zielgruppe", aiBen: "Nutzen", aiEdit: "Prompt anpassen", aiReset: "Standard wiederherstellen",
+                aiGen: "Texte generieren", aiWork: "KI arbeitet...", aiDone: "Fertig!", delConfirm: "Projekt wirklich komplett löschen?"
+            },
+            en: {
+                categories: "Categories", tags: "Your Tags", newModel: "New Model", 
+                search: "Search models, tags, AI descriptions...", allModels: "All Models", loading: "Loading projects...",
+                sortDesc: "Sort: Newest First", sortAsc: "Sort: Oldest First", sortStat: "Sort: Status (A-Z)",
+                statusFilter: "Status Filter", showAll: "Show All", noProj: "No projects found in this view.",
+                newProject: "Create New Project", editProject: "Edit Project", editorSub: "Upload files and edit metadata.",
+                btnDelete: "Delete", btnCancel: "Cancel", btnSave: "Save", btnSaving: "Saving...", btnSaved: "Saved!",
+                filesTitle: "Files & Upload", dropFiles: "Drag files here or click to upload", uploadLoad: "Uploading...",
+                h3d: "3D Models", hArchive: "Archives", hImg: "Images",
+                metaTitle: "Project Metadata", lIntTitle: "Internal Project Title *", lCat: "Category", lStatus: "Status",
+                lPubTitle: "Public Title ", lTags: "Tags (comma separated)", lMat: "Material & Hardware", pMat: "Material", pHW: "Hardware...",
+                lDesc: "Description ", lNotes: "Notes (Internal)",
+                aiTitle: "AI Assistant", aiProb: "Problem", aiAud: "Target Audience", aiBen: "Benefits", aiEdit: "Edit Prompt", aiReset: "Reset to Default",
+                aiGen: "Generate Texts", aiWork: "AI is working...", aiDone: "Done!", delConfirm: "Are you sure you want to permanently delete this project?"
+            }
+        };
+
+        function applyTranslations() {
+            const t = isEnglish ? translations.en : translations.de;
+            document.querySelectorAll('[data-i18n]').forEach(el => {
+                const key = el.getAttribute('data-i18n');
+                if (t[key]) el.innerText = t[key];
+            });
+            document.querySelectorAll('[data-i18n-placeholder]').forEach(el => {
+                const key = el.getAttribute('data-i18n-placeholder');
+                if (t[key]) el.placeholder = t[key];
+            });
+            
+            const sortBtn = document.getElementById('sort-btn');
+            if (sortMode === 'new_desc') sortBtn.innerHTML = `<span data-i18n="sortDesc">${t.sortDesc}</span>`;
+            if (sortMode === 'new_asc') sortBtn.innerHTML = `<span data-i18n="sortAsc">${t.sortAsc}</span>`;
+            if (sortMode === 'status_asc') sortBtn.innerHTML = `<span data-i18n="sortStat">${t.sortStat}</span>`;
+        }
+
+        document.getElementById('lang-switch').innerText = isEnglish ? 'DE' : 'EN';
+        applyTranslations();
+        
+        // --- Status Manager Logik ---
+        const DEFAULT_STATUSES = [
+            { name: 'Tbd', color: '#94a3b8' }, 
+            { name: 'In Progress', color: '#eab308' }, 
+            { name: 'Done', color: '#22c55e' }
+        ];
+        let availableStatuses = JSON.parse(localStorage.getItem('ai3dhub_statuses')) || DEFAULT_STATUSES;
+        let selectedStatus = null;
+
+        function saveStatuses() {
+            localStorage.setItem('ai3dhub_statuses', JSON.stringify(availableStatuses));
+            renderStatusSelector();
+            renderModelsGrid(); 
+            updateFilterMenu(allProjects); 
+        }
+
+        function selectStatus(name) {
+            selectedStatus = selectedStatus === name ? null : name;
+            renderStatusSelector();
+        }
+
+        function addStatus() {
+            const input = document.getElementById('new-status-input');
+            const name = input.value.trim();
+            if (name && !availableStatuses.find(s => s.name === name)) {
+                availableStatuses.push({ name: name, color: '#64748b' });
+                input.value = '';
+                saveStatuses();
+            }
+        }
+
+        function deleteStatus(name, event) {
+            event.stopPropagation();
+            availableStatuses = availableStatuses.filter(s => s.name !== name);
+            if (selectedStatus === name) selectedStatus = null;
+            saveStatuses();
+        }
+
+        function updateStatusColor(name, color) {
+            const status = availableStatuses.find(s => s.name === name);
+            if (status) {
+                status.color = color;
+                saveStatuses();
+            }
+        }
+
+        function renderStatusSelector() {
+            const container = document.getElementById('status-selector');
+            if(!container) return;
+            container.innerHTML = '';
+
+            availableStatuses.forEach(status => {
+                const isSelected = selectedStatus === status.name;
+                const ringClass = isSelected ? 'ring-2 ring-offset-1 ring-slate-800 dark:ring-white dark:ring-offset-gemini-bg' : '';
+                
+                const html = `
+                    <div class="relative group flex items-center gap-1 px-2 py-1 rounded-md cursor-pointer transition-all ${ringClass}" 
+                         style="background-color: ${status.color}20; border: 1px solid ${status.color}50;"
+                         onclick="selectStatus('${status.name}')">
+                        <span class="text-xs font-bold uppercase tracking-wide" style="color: ${status.color};">${status.name}</span>
+                        <div class="hidden group-hover:flex items-center gap-1 ml-1 opacity-70 hover:opacity-100">
+                            <label class="cursor-pointer" onclick="event.stopPropagation()" title="Farbe ändern">
+                                <i data-lucide="palette" class="w-3 h-3 hover:text-slate-900 dark:hover:text-white" style="color: ${status.color};"></i>
+                                <input type="color" value="${status.color}" class="absolute opacity-0 w-0 h-0" onchange="updateStatusColor('${status.name}', this.value)">
+                            </label>
+                            <i data-lucide="x" class="w-3 h-3 hover:text-red-500" style="color: ${status.color};" onclick="deleteStatus('${status.name}', event)"></i>
+                        </div>
+                    </div>
+                `;
+                container.insertAdjacentHTML('beforeend', html);
+            });
+
+            container.insertAdjacentHTML('beforeend', `
+                <div class="flex items-center gap-1 ml-auto">
+                    <input type="text" id="new-status-input" placeholder="..." class="w-20 px-2 py-1 text-xs border border-slate-300 dark:border-gemini-border rounded-md focus:outline-none dark:bg-[#1A1A1C] dark:text-gemini-text" onkeypress="if(event.key === 'Enter') addStatus()">
+                    <button onclick="addStatus()" class="p-1 bg-slate-200 hover:bg-slate-300 dark:bg-gemini-border dark:hover:bg-slate-600 rounded-md transition-colors"><i data-lucide="plus" class="w-3 h-3 text-slate-600 dark:text-slate-300"></i></button>
+                </div>
+            `);
+            lucide.createIcons();
+        }
+
+        // --- Navigation & Core ---
+
+        function showGridView() {
+            document.getElementById('detail-view').classList.add('hidden');
+            document.getElementById('grid-view').classList.remove('hidden');
+        }
+
+        function toggleSort() {
+            const t = isEnglish ? translations.en : translations.de;
+            if (sortMode === 'new_desc') sortMode = 'new_asc';
+            else if (sortMode === 'new_asc') sortMode = 'status_asc';
+            else sortMode = 'new_desc';
+            
+            const btn = document.getElementById('sort-btn');
+            if (sortMode === 'new_desc') btn.innerHTML = `<span data-i18n="sortDesc">${t.sortDesc}</span>`;
+            if (sortMode === 'new_asc') btn.innerHTML = `<span data-i18n="sortAsc">${t.sortAsc}</span>`;
+            if (sortMode === 'status_asc') btn.innerHTML = `<span data-i18n="sortStat">${t.sortStat}</span>`;
+            
+            renderModelsGrid();
+        }
+
+        function toggleFilterMenu() {
+            document.getElementById('filter-menu').classList.toggle('hidden');
+        }
+
+        function setStatusFilter(status) {
+            statusFilter = status;
+            document.getElementById('filter-menu').classList.add('hidden');
+            const badge = document.getElementById('active-status-filter');
+            if (status) {
+                badge.innerText = status;
+                badge.classList.remove('hidden');
+            } else {
+                badge.classList.add('hidden');
+            }
+            renderModelsGrid();
+        }
+
+        function updateFilterMenu(projects) {
+            const t = isEnglish ? translations.en : translations.de;
+            const statuses = new Set();
+            projects.forEach(p => { if(p.status && p.status.trim() !== '') statuses.add(p.status.trim()); });
+
+            const ul = document.getElementById('filter-status-list');
+            ul.innerHTML = `<li><button onclick="setStatusFilter(null)" class="w-full text-left px-4 py-2 text-sm text-slate-700 dark:text-gemini-text hover:bg-slate-100 dark:hover:bg-gemini-hover transition-colors" data-i18n="showAll">${t.showAll}</button></li>`;
+            
+            statuses.forEach(status => {
+                const customStatus = availableStatuses.find(s => s.name === status);
+                const dotColor = customStatus ? customStatus.color : '#64748b';
+                ul.innerHTML += `<li><button onclick="setStatusFilter('${status}')" class="w-full flex items-center gap-2 text-left px-4 py-2 text-sm text-slate-700 dark:text-gemini-text hover:bg-slate-100 dark:hover:bg-gemini-hover transition-colors"><span class="w-2 h-2 rounded-full" style="background-color: ${dotColor};"></span>${status}</button></li>`;
+            });
+        }
+
+        function setFilter(type, value) {
+            const t = isEnglish ? translations.en : translations.de;
+            currentFilter = { type, value };
+            
+            const titleElement = document.getElementById('grid-view-title');
+            if (type === 'category') titleElement.innerText = value; // Kategorie Name direkt
+            else if (type === 'tag') titleElement.innerText = `#${value}`;
+            else {
+                titleElement.setAttribute('data-i18n', 'allModels');
+                titleElement.innerText = t.allModels;
+            }
+            
+            showGridView();
+            renderModelsGrid(); 
+            renderSidebar(allProjects); 
+        }
+
+        function openNewProject() {
+            const t = isEnglish ? translations.en : translations.de;
+            editingProjectId = null;
+            currentFiles = [];
+            currentCoverImage = null;
+            selectedStatus = null; 
+            
+            document.getElementById('editor-title').innerText = t.newProject;
+            document.getElementById('editor-title').setAttribute('data-i18n', 'newProject');
+            
+            ['internal-title','category','public-title','tags','material','hardware','public-description','notes','ai-problem','ai-audience','ai-features'].forEach(id => {
+                document.getElementById(id).value = '';
+            });
+            
+            document.getElementById('delete-project-btn').classList.add('hidden'); // Verstecken bei neu
+            
+            renderStatusSelector();
+            renderUploadedFiles(); 
+            document.getElementById('grid-view').classList.add('hidden');
+            document.getElementById('detail-view').classList.remove('hidden');
+        }
+
+        function openProject(id) {
+            const t = isEnglish ? translations.en : translations.de;
+            const project = allProjects.find(p => p.id === id);
+            if(!project) return;
+
+            editingProjectId = id;
+            document.getElementById('editor-title').innerText = t.editProject;
+            document.getElementById('editor-title').setAttribute('data-i18n', 'editProject');
+
+            document.getElementById('internal-title').value = project.internal_title || '';
+            document.getElementById('category').value = project.category || '';
+            document.getElementById('public-title').value = project.public_title || '';
+            document.getElementById('tags').value = project.tags || '';
+            document.getElementById('material').value = project.material || '';
+            document.getElementById('hardware').value = project.hardware || '';
+            document.getElementById('public-description').value = project.description || '';
+            document.getElementById('notes').value = project.notes || '';
+
+            ['ai-problem','ai-audience','ai-features'].forEach(id => document.getElementById(id).value = '');
+
+            selectedStatus = project.status || null;
+            try { currentFiles = JSON.parse(project.files_json || "[]"); } catch(e) { currentFiles = []; }
+            currentCoverImage = project.cover_image;
+            
+            document.getElementById('delete-project-btn').classList.remove('hidden'); // Einblenden bei Edit
+            
+            renderStatusSelector();
+            renderUploadedFiles();
+            document.getElementById('grid-view').classList.add('hidden');
+            document.getElementById('detail-view').classList.remove('hidden');
+        }
+
+        async function deleteProject() {
+            const t = isEnglish ? translations.en : translations.de;
+            if (!confirm(t.delConfirm)) return;
+            
+            try {
+                const response = await fetch(`${API_URL}/api/projects/${editingProjectId}`, { method: 'DELETE' });
+                if (!response.ok) throw new Error('Löschen fehlgeschlagen');
+                showGridView();
+                fetchAndRenderModels();
+            } catch (error) {
+                alert("Fehler beim Löschen des Projekts.");
+            }
+        }
+
+        function renderSidebar(projects) {
+            const t = isEnglish ? translations.en : translations.de;
+            const categories = new Set();
+            const tags = new Set();
+
+            projects.forEach(p => {
+                if(p.category) categories.add(p.category.trim());
+                if(p.tags) p.tags.split(',').forEach(t => { if(t.trim()) tags.add(t.trim()); });
+            });
+
+            const activeClass = "flex items-center gap-3 px-3 py-2 text-sm font-medium bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400 rounded-md w-full text-left";
+            const inactiveClass = "flex items-center gap-3 px-3 py-2 text-sm font-medium text-slate-600 dark:text-gemini-muted hover:bg-slate-100 dark:hover:bg-gemini-hover rounded-md w-full text-left";
+
+            const catUl = document.getElementById('sidebar-categories');
+            const isAllActive = currentFilter.type === 'all';
+            catUl.innerHTML = `<li><button onclick="setFilter('all', null)" class="${isAllActive ? activeClass : inactiveClass}"><i data-lucide="layout-grid" class="w-4 h-4"></i> <span data-i18n="allModels">${t.allModels}</span></button></li>`;
+            
+            categories.forEach(cat => {
+                const isActive = currentFilter.type === 'category' && currentFilter.value === cat;
+                catUl.innerHTML += `<li><button onclick="setFilter('category', '${cat}')" class="${isActive ? activeClass : inactiveClass}"><i data-lucide="folder" class="w-4 h-4"></i> ${cat}</button></li>`;
+            });
+
+            const tagUl = document.getElementById('sidebar-tags');
+            tagUl.innerHTML = '';
+            if(tags.size === 0) tagUl.innerHTML = `<li class="text-sm text-slate-500 px-3">Keine Tags</li>`;
+            
+            tags.forEach(tag => {
+                const isActive = currentFilter.type === 'tag' && currentFilter.value === tag;
+                tagUl.innerHTML += `<li><button onclick="setFilter('tag', '${tag}')" class="${isActive ? activeClass : inactiveClass}"><i data-lucide="tag" class="w-4 h-4"></i> ${tag}</button></li>`;
+            });
+
+            lucide.createIcons();
+        }
+
+        function renderModelsGrid() {
+            const t = isEnglish ? translations.en : translations.de;
+            const grid = document.getElementById('model-grid');
+            const countLabel = document.getElementById('project-count');
+            
+            let filteredProjects = allProjects;
+
+            if (currentFilter.type === 'category') {
+                filteredProjects = filteredProjects.filter(p => p.category && p.category.trim() === currentFilter.value);
+            } else if (currentFilter.type === 'tag') {
+                filteredProjects = filteredProjects.filter(p => {
+                    if (!p.tags) return false;
+                    return p.tags.split(',').map(tag => tag.trim()).includes(currentFilter.value);
+                });
+            }
+
+            if (statusFilter) {
+                filteredProjects = filteredProjects.filter(p => p.status && p.status.trim() === statusFilter);
+            }
+
+            filteredProjects.sort((a, b) => {
+                if (sortMode === 'new_desc') return b.id - a.id;
+                if (sortMode === 'new_asc') return a.id - b.id;
+                if (sortMode === 'status_asc') {
+                    const statA = a.status || 'zzzz'; 
+                    const statB = b.status || 'zzzz';
+                    return statA.localeCompare(statB);
+                }
+                return 0;
+            });
+
+            countLabel.innerText = `${filteredProjects.length} Projekte`;
+            grid.innerHTML = ''; 
+
+            if (filteredProjects.length === 0) {
+                grid.innerHTML = `<div class="col-span-full text-center py-10 text-slate-500" data-i18n="noProj">${t.noProj}</div>`;
+                return;
+            }
+
+            filteredProjects.forEach(model => {
+                const title = model.public_title || model.internal_title || 'Unbenannt';
+                const category = model.category || "Allgemein";
+                
+                let imgUrl = "https://placehold.co/400x300/e2e8f0/64748b?text=Kein+Bild";
+                if (model.cover_image && model.files_json) {
+                    try {
+                        const parsedFiles = JSON.parse(model.files_json);
+                        const coverFile = parsedFiles.find(f => f.filename === model.cover_image);
+                        if (coverFile) imgUrl = coverFile.path;
+                    } catch(e) {}
+                }
+                
+                const rawTags = model.tags ? model.tags.split(',').map(tg => tg.trim()).filter(tg => tg) : [];
+                const tagsHtml = rawTags.map(tag => 
+                    `<span class="inline-block bg-slate-100 text-slate-500 dark:bg-gemini-hover dark:text-gemini-muted text-xs px-2 py-1 rounded-md mr-1 mb-1">#${tag}</span>`
+                ).join('');
+
+                let statusHtml = '';
+                if (model.status && model.status.trim() !== '') {
+                    const statusText = model.status.trim();
+                    const customStatus = availableStatuses.find(s => s.name === statusText);
+                    const bgColor = customStatus ? customStatus.color : '#64748b'; 
+                    statusHtml = `<div class="absolute top-2 right-2 flex gap-1"><span style="background-color: ${bgColor}; color: #fff;" class="text-[10px] font-bold px-2 py-1 rounded shadow-sm uppercase tracking-wide">${statusText}</span></div>`;
+                }
+
+                const cardHTML = `
+                    <div onclick="openProject(${model.id})" class="bg-white dark:bg-gemini-surface border border-slate-200 dark:border-gemini-border rounded-xl overflow-hidden hover:shadow-lg transition-shadow duration-300 group cursor-pointer flex flex-col">
+                        <div class="relative h-48 bg-slate-100 dark:bg-gemini-bg flex-shrink-0">
+                            <img src="${imgUrl}" alt="${title}" class="w-full h-full object-cover opacity-90">
+                            ${statusHtml}
+                        </div>
+                        <div class="p-4 flex-1">
+                            <p class="text-xs text-blue-600 dark:text-blue-400 font-semibold mb-1">${category}</p>
+                            <h3 class="font-bold text-slate-800 dark:text-gemini-text mb-2 truncate" title="${title}">${title}</h3>
+                            <div class="flex flex-wrap mt-2">${tagsHtml}</div>
+                        </div>
+                    </div>
+                `;
+                grid.insertAdjacentHTML('beforeend', cardHTML);
+            });
+        }
+
+        async function fetchAndRenderModels() {
+            const t = isEnglish ? translations.en : translations.de;
+            const grid = document.getElementById('model-grid');
+            try {
+                const response = await fetch(`${API_URL}/api/projects`);
+                allProjects = await response.json();
+
+                renderSidebar(allProjects);
+                updateFilterMenu(allProjects);
+                renderModelsGrid(); 
+            } catch (error) {
+                grid.innerHTML = `<div class="col-span-full text-center py-10 text-red-500" data-i18n="errorBackend">${t.errorBackend || "Fehler beim Laden. Backend an?"}</div>`;
+            }
+        }
+
+        // --- Uploads ---
+        const dropZone = document.getElementById('drop-zone');
+        const fileInput = document.getElementById('file-input');
+        const dropText = document.getElementById('drop-text');
+
+        ['dragenter', 'dragover'].forEach(eventName => {
+            dropZone.addEventListener(eventName, (e) => { e.preventDefault(); dropZone.classList.add('border-blue-500', 'bg-blue-50', 'dark:bg-blue-900/10'); });
+        });
+        dropZone.addEventListener('dragleave', (e) => { e.preventDefault(); dropZone.classList.remove('border-blue-500', 'bg-blue-50', 'dark:bg-blue-900/10'); });
+        dropZone.addEventListener('drop', (e) => {
+            e.preventDefault(); dropZone.classList.remove('border-blue-500', 'bg-blue-50', 'dark:bg-blue-900/10');
+            if (e.dataTransfer.files && e.dataTransfer.files.length > 0) uploadFiles(e.dataTransfer.files);
+        });
+        fileInput.addEventListener('change', function() { if(this.files.length > 0) uploadFiles(this.files); });
+
+        async function uploadFiles(files) {
+            const t = isEnglish ? translations.en : translations.de;
+            dropText.innerHTML = `<i data-lucide="loader-2" class="w-4 h-4 animate-spin inline"></i> ${t.uploadLoad}`;
+            lucide.createIcons();
+
+            const formData = new FormData();
+            for (let i = 0; i < files.length; i++) formData.append('files', files[i]);
+
+            try {
+                const response = await fetch(`${API_URL}/api/upload`, { method: 'POST', body: formData });
+                if (!response.ok) throw new Error('Upload fehlgeschlagen');
+                
+                const data = await response.json();
+                data.uploaded.forEach(file => {
+                    currentFiles.push(file);
+                    const ext = file.filename.split('.').pop().toLowerCase();
+                    if (['jpg', 'jpeg', 'png', 'webp'].includes(ext) && !currentCoverImage) currentCoverImage = file.filename;
+                });
+                
+                renderUploadedFiles();
+                dropText.setAttribute('data-i18n', 'dropFiles');
+                dropText.innerText = t.dropFiles;
+            } catch (error) {
+                dropText.innerText = "Fehler beim Upload.";
+            }
+        }
+
+        function removeFile(filename) {
+            currentFiles = currentFiles.filter(f => f.filename !== filename);
+            if (currentCoverImage === filename) currentCoverImage = null;
+            renderUploadedFiles();
+        }
+
+        function setCoverImage(filename) {
+            currentCoverImage = filename;
+            renderUploadedFiles();
+        }
+
+        function renderUploadedFiles() {
+            document.getElementById('list-3d').innerHTML = '';
+            document.getElementById('list-archives').innerHTML = '';
+            document.getElementById('list-images').innerHTML = '';
+
+            currentFiles.forEach(file => {
+                const ext = file.filename.split('.').pop().toLowerCase();
+                let targetListId = 'list-archives';
+                let icon = 'file'; let iconColor = 'text-slate-500';
+                const isImage = ['jpg', 'jpeg', 'png', 'webp'].includes(ext);
+
+                if (['stl', '3mf', 'obj', 'step'].includes(ext)) { targetListId = 'list-3d'; icon = 'cuboid'; iconColor = 'text-blue-500'; }
+                else if (isImage) { targetListId = 'list-images'; icon = 'image'; iconColor = 'text-emerald-500'; }
+                else if (['f3d', 'zip', 'rar', '7z'].includes(ext)) { targetListId = 'list-archives'; icon = 'database'; iconColor = 'text-orange-500'; }
+
+                const ul = document.getElementById(targetListId);
+                const li = document.createElement('li');
+                li.className = "flex items-center justify-between p-3 bg-slate-50 dark:bg-[#1A1A1C] border border-slate-100 dark:border-gemini-border rounded-md";
+                
+                let visualHtml = `<i data-lucide="${icon}" class="w-5 h-5 ${iconColor}"></i>`;
+                if (isImage) visualHtml = `<img src="${file.path}" alt="${file.filename}" class="w-8 h-8 rounded object-cover">`;
+
+                let starButtonHtml = '';
+                if (isImage) {
+                    const isCover = currentCoverImage === file.filename;
+                    starButtonHtml = `<button onclick="setCoverImage('${file.filename}')" class="${isCover ? 'text-yellow-500' : 'text-slate-300 hover:text-yellow-400'} transition-colors"><i data-lucide="star" class="w-4 h-4 ${isCover ? 'fill-current' : ''}"></i></button>`;
+                }
+
+                li.innerHTML = `
+                    <div class="flex items-center gap-3">${visualHtml}
+                        <div><p class="text-sm font-medium text-slate-700 dark:text-gemini-text truncate w-40" title="${file.filename}">${file.filename}</p><p class="text-xs text-slate-500">${file.size_mb} MB</p></div>
+                    </div>
+                    <div class="flex items-center gap-3">
+                        ${starButtonHtml}
+                        <a href="${file.path}" target="_blank" download class="text-slate-400 hover:text-blue-500 transition-colors"><i data-lucide="download" class="w-4 h-4"></i></a>
+                        <button class="text-slate-400 hover:text-red-500 transition-colors" onclick="removeFile('${file.filename}')"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
+                    </div>`;
+                ul.appendChild(li);
+            });
+            lucide.createIcons();
+        }
+
+        function resetPrompt() {
+            document.getElementById('ai-prompt').value = "Erstelle einen knackigen, SEO-optimierten Titel und eine strukturierte Beschreibung für Makerworld. Berücksichtige das Problem, Zielgruppe und Nutzen.";
+        }
+
+        async function generateTexts() {
+            const t = isEnglish ? translations.en : translations.de;
+            const btn = document.getElementById('generate-btn');
+            const originalContent = btn.innerHTML;
+            btn.disabled = true;
+            btn.innerHTML = `<i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i> ${t.aiWork}`;
+            lucide.createIcons(); 
+
+            const payload = {
+                problem: document.getElementById('ai-problem').value || "Nicht spezifiziert",
+                target_audience: document.getElementById('ai-audience').value || "Alle",
+                features: document.getElementById('ai-features').value || "Keine besonderen Angaben",
+                prompt_template: document.getElementById('ai-prompt').value
+            };
+
+            try {
+                const response = await fetch(`${API_URL}/api/generate-texts`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                if (!response.ok) throw new Error(`API Fehler: ${response.status}`);
+                const data = await response.json();
+                document.getElementById('public-title').value = data.title;
+                document.getElementById('public-description').value = data.description;
+                
+                btn.innerHTML = `<i data-lucide="check" class="w-4 h-4"></i> ${t.aiDone}`;
+                lucide.createIcons();
+                setTimeout(() => { btn.innerHTML = originalContent; btn.disabled = false; lucide.createIcons(); applyTranslations(); }, 2000);
+            } catch (error) {
+                alert("Fehler bei der Verbindung zur KI.");
+                btn.innerHTML = originalContent; btn.disabled = false; lucide.createIcons(); applyTranslations();
+            }
+        }
+
+        async function saveProject() {
+            const t = isEnglish ? translations.en : translations.de;
+            const btn = document.getElementById('save-project-btn');
+            const internalTitle = document.getElementById('internal-title').value.trim();
+            if (!internalTitle) return alert("Interner Titel fehlt!");
+
+            btn.disabled = true;
+            btn.innerHTML = `<i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i> <span data-i18n="btnSaving">${t.btnSaving}</span>`;
+
+            const payload = {
+                internal_title: internalTitle,
+                category: document.getElementById('category').value,
+                status: selectedStatus || '',
+                public_title: document.getElementById('public-title').value,
+                tags: document.getElementById('tags').value,
+                material: document.getElementById('material').value,
+                hardware: document.getElementById('hardware').value,
+                description: document.getElementById('public-description').value,
+                notes: document.getElementById('notes').value,
+                cover_image: currentCoverImage,
+                files_json: JSON.stringify(currentFiles)
+            };
+
+            try {
+                const method = editingProjectId ? 'PUT' : 'POST';
+                const url = editingProjectId ? `${API_URL}/api/projects/${editingProjectId}` : `${API_URL}/api/projects`;
+                const response = await fetch(url, { method: method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+                if (!response.ok) throw new Error('Speichern fehlgeschlagen');
+                
+                btn.innerHTML = `<i data-lucide="check" class="w-4 h-4"></i> <span data-i18n="btnSaved">${t.btnSaved}</span>`;
+                setTimeout(() => {
+                    btn.innerHTML = `<i data-lucide="save" class="w-4 h-4"></i> <span data-i18n="btnSave">${t.btnSave}</span>`;
+                    btn.disabled = false;
+                    lucide.createIcons();
+                    showGridView();
+                    fetchAndRenderModels(); 
+                }, 1000);
+            } catch (error) {
+                alert("Fehler beim Speichern!");
+                btn.disabled = false;
+                applyTranslations();
+            }
+        }
+
+        fetchAndRenderModels();
+    </script>
+</body>
+</html>
