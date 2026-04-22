@@ -1,8 +1,8 @@
 <?xml version="1.0"?>
 <Container version="2">
   <Name>AI-3D-Hub</Name>
-  <Repository>markusdev/ai3dhub:latest</Repository> <!-- WICHTIG: Hier deinen echten Docker Hub Namen eintragen -->
-  <Registry>https://hub.docker.com/r/markusdev/ai3dhub</Registry>
+  <Repository>drondernei/ai3dhub:latest</Repository>
+  <Registry>https://hub.docker.com/r/drondernei/ai3dhub</Registry>
   <Network>bridge</Network>
   <MyIP/>
   <Shell>bash</Shell>
@@ -16,16 +16,17 @@
   <Category>Productivity: Tools: Utilities:</Category>
   <WebUI>http://[IP]:[PORT:8000]/</WebUI>
   <TemplateURL>https://raw.githubusercontent.com/PapasBastelbude/ai3dhub/main/ai3dhub.xml</TemplateURL>
-  <Icon>https://raw.githubusercontent.com/PapasBastelbude/ai3dhub/main/frontend/logo.jpg</Icon> <!-- Pfad zu deinem Logo auf GitHub -->
+  <Icon>https://raw.githubusercontent.com/PapasBastelbude/ai3dhub/main/frontend/logo.jpg</Icon>
   <ExtraParams/>
   <PostArgs/>
   <CPUset/>
   <DateInstalled/>
   <DonateText>Support the development!</DonateText>
-  <DonateLink>https://buymeacoffee.com/papasbastelbude</DonateLink> 
+  <DonateLink>https://buymeacoffee.com/papasbastelbude</DonateLink>
   <Requires>Anthropic API Key (Claude) for AI features.</Requires>
   <Config Name="WebUI Port" Target="8000" Default="8000" Mode="tcp" Description="The port the WebUI runs on." Type="Port" Display="always" Required="true" Mask="false">8000</Config>
   <Config Name="Database Storage" Target="/app/data" Default="/mnt/user/appdata/ai3dhub/data" Mode="rw" Description="Path to store the SQLite database securely." Type="Path" Display="always" Required="true" Mask="false">/mnt/user/appdata/ai3dhub/data</Config>
   <Config Name="3D Assets Storage" Target="/app/uploads" Default="/mnt/user/3D_Assets/ai3dhub/" Mode="rw" Description="Path where your actual 3D models and images are stored. You can map this to an existing share." Type="Path" Display="always" Required="true" Mask="false">/mnt/user/3D_Assets/ai3dhub/</Config>
   <Config Name="Anthropic API Key" Target="ANTHROPIC_API_KEY" Default="" Mode="" Description="Your Claude API Key for text generation. E.g. sk-ant-..." Type="Variable" Display="always" Required="false" Mask="true"></Config>
 </Container>
+
