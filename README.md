@@ -21,7 +21,7 @@ AI-3D-Hub is a lightweight, self-hosted Digital Asset Management (DAM) tool desi
 
 1. **Clone the repository:**
    ```bash
-   git clone https://github.com/yourusername/ai3dhub.git
+   git clone https://github.com/PapasBastelbude/ai3dhub.git
    cd ai3dhub
    ```
 
