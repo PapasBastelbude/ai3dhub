@@ -1,0 +1,4 @@
+## 2024-05-21 - Path Traversal Vulnerability in File Uploads
+**Vulnerability:** Path traversal in `main.py` via `file.filename` during upload and `file["filename"]` in the project creation payload.
+**Learning:** `FastAPI`'s `UploadFile.filename` takes user input verbatim, including paths with slashes (e.g. `../../../`). When concatenated to a directory path using `/` or `os.path.join`, this allows an attacker to write files outside the intended upload directory. Same issue existed in JSON parsing where filename is directly read from payload and combined with temp path to move it.
+**Prevention:** Always sanitize filenames from uploads or API payloads. Using `os.path.basename(filename.replace("\\", "/"))` strips paths. Additionally, checking if the resolved path is relative to the intended directory using `Path.resolve().is_relative_to(base_path.resolve())` adds defense-in-depth against remaining path traversal bypasses.

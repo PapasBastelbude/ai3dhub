@@ -4,14 +4,14 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>AI-3D-Hub</title>
-    
+
     <!-- 1. Verhindert Flackern (FOUC) beim Neuladen - Muss GANZ OBEN bleiben -->
     <script>
         if (localStorage.getItem('ai3dhub_theme') === 'dark' || (!('ai3dhub_theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
             document.documentElement.classList.add('dark');
         }
     </script>
-    
+
     <!-- 2. Tailwind Core laden -->
     <script src="https://cdn.tailwindcss.com"></script>
 
@@ -28,9 +28,9 @@
             }
         };
     </script>
-    
+
     <script src="https://unpkg.com/lucide@latest"></script>
-    
+
     <style>
         ::-webkit-scrollbar { width: 8px; }
         ::-webkit-scrollbar-track { background: #f1f5f9; }
@@ -39,7 +39,7 @@
         .dark ::-webkit-scrollbar-track { background: #131314; }
         .dark ::-webkit-scrollbar-thumb { background: #333537; }
     </style>
-    
+
     <script>
         // --- Core UI & Theme Logik ---
         function toggleDarkMode() {
@@ -49,7 +49,7 @@
         }
 
         let isEnglish = localStorage.getItem('ai3dhub_lang') === 'en';
-        
+
         function toggleLanguage() {
             isEnglish = !isEnglish;
             localStorage.setItem('ai3dhub_lang', isEnglish ? 'en' : 'de');
@@ -97,7 +97,7 @@
                 <ul id="sidebar-tags" class="space-y-1"></ul>
             </div>
         </nav>
-        
+
         <div class="p-4 border-t border-slate-200 dark:border-gemini-border">
             <button onclick="openNewProject()" class="w-full flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white dark:bg-blue-500 dark:hover:bg-blue-400 dark:text-slate-900 px-4 py-2 rounded-md text-sm font-medium transition-colors shadow-sm">
                 <i data-lucide="upload" class="w-4 h-4"></i> <span data-i18n="newModel">Neues Modell</span>
@@ -132,7 +132,7 @@
                     <button id="sort-btn" onclick="toggleSort()" class="px-3 py-1.5 bg-white dark:bg-gemini-surface border border-slate-300 dark:border-gemini-border rounded-md text-slate-600 dark:text-gemini-text hover:bg-slate-50 dark:hover:bg-gemini-hover transition-colors min-w-[200px] text-left">
                         <span data-i18n="sortDesc">Sortieren: Neu (absteigend)</span>
                     </button>
-                    
+
                     <div class="relative">
                         <button id="filter-btn" onclick="toggleFilterMenu()" class="px-3 py-1.5 bg-white dark:bg-gemini-surface border border-slate-300 dark:border-gemini-border rounded-md text-slate-600 dark:text-gemini-text hover:bg-slate-50 dark:hover:bg-gemini-hover transition-colors flex items-center gap-2">
                             <i data-lucide="filter" class="w-4 h-4"></i>
@@ -247,7 +247,7 @@
                             <div><label class="block text-sm text-slate-700 dark:text-gemini-muted mb-1" data-i18n="aiProb">Problem</label><input type="text" id="ai-problem" class="w-full px-3 py-2 border border-slate-300 dark:border-gemini-border rounded-md text-sm dark:bg-gemini-bg dark:text-gemini-text"></div>
                             <div><label class="block text-sm text-slate-700 dark:text-gemini-muted mb-1" data-i18n="aiAud">Zielgruppe</label><input type="text" id="ai-audience" class="w-full px-3 py-2 border border-slate-300 dark:border-gemini-border rounded-md text-sm dark:bg-gemini-bg dark:text-gemini-text"></div>
                             <div><label class="block text-sm text-slate-700 dark:text-gemini-muted mb-1" data-i18n="aiBen">Nutzen</label><input type="text" id="ai-features" class="w-full px-3 py-2 border border-slate-300 dark:border-gemini-border rounded-md text-sm dark:bg-gemini-bg dark:text-gemini-text"></div>
-                            
+
                             <div class="pt-3 border-t border-purple-100 dark:border-purple-900/30">
                                 <div class="flex items-center justify-between mb-2">
                                     <div class="flex items-center gap-2">
@@ -268,23 +268,23 @@
 
     <script>
         // 1. Globale Variablen GANZ NACH OBEN
-        const API_URL = ''; 
+        const API_URL = '';
         const DEFAULT_AI_PROMPT = "Create a catchy, SEO-optimized title and a structured description for Makerworld. Consider the problem, target audience, and benefits.";
         let allProjects = [];
-        let editingProjectId = null; 
+        let editingProjectId = null;
         let currentFiles = [];
         let currentCoverImage = null;
         let currentFilter = { type: 'all', value: null };
-        let sortMode = 'new_desc'; 
+        let sortMode = 'new_desc';
         let statusFilter = null;
 
         // 2. Lucide Icons initiieren
         lucide.createIcons();
-        
+
         // --- TRANSLATION DICTIONARY ---
         const translations = {
             de: {
-                categories: "Kategorien", tags: "Deine Tags", newModel: "Neues Modell", 
+                categories: "Kategorien", tags: "Deine Tags", newModel: "Neues Modell",
                 search: "Suche Modelle, Tags, KI-Beschreibungen...", allModels: "Alle Modelle", loading: "Lade Projekte...",
                 sortDesc: "Sortieren: Neu (absteigend)", sortAsc: "Sortieren: Neu (aufsteigend)", sortStat: "Sortieren: Status (A-Z)",
                 statusFilter: "Status-Filter", showAll: "Alle anzeigen", noProj: "Keine Projekte in dieser Ansicht gefunden.",
@@ -299,7 +299,7 @@
                 aiGen: "Texte generieren", aiWork: "KI arbeitet...", aiDone: "Fertig!", delConfirm: "Projekt wirklich komplett löschen?"
             },
             en: {
-                categories: "Categories", tags: "Your Tags", newModel: "New Model", 
+                categories: "Categories", tags: "Your Tags", newModel: "New Model",
                 search: "Search models, tags, AI descriptions...", allModels: "All Models", loading: "Loading projects...",
                 sortDesc: "Sort: Newest First", sortAsc: "Sort: Oldest First", sortStat: "Sort: Status (A-Z)",
                 statusFilter: "Status Filter", showAll: "Show All", noProj: "No projects found in this view.",
@@ -325,7 +325,7 @@
                 const key = el.getAttribute('data-i18n-placeholder');
                 if (t[key]) el.placeholder = t[key];
             });
-            
+
             const sortBtn = document.getElementById('sort-btn');
             if (sortMode === 'new_desc') sortBtn.innerHTML = `<span data-i18n="sortDesc">${t.sortDesc}</span>`;
             if (sortMode === 'new_asc') sortBtn.innerHTML = `<span data-i18n="sortAsc">${t.sortAsc}</span>`;
@@ -334,11 +334,11 @@
 
         document.getElementById('lang-switch').innerText = isEnglish ? 'DE' : 'EN';
         applyTranslations();
-        
+
         // --- Status Manager Logik ---
         const DEFAULT_STATUSES = [
-            { name: 'Tbd', color: '#94a3b8' }, 
-            { name: 'In Progress', color: '#eab308' }, 
+            { name: 'Tbd', color: '#94a3b8' },
+            { name: 'In Progress', color: '#eab308' },
             { name: 'Done', color: '#22c55e' }
         ];
         let availableStatuses = JSON.parse(localStorage.getItem('ai3dhub_statuses')) || DEFAULT_STATUSES;
@@ -347,8 +347,8 @@
         function saveStatuses() {
             localStorage.setItem('ai3dhub_statuses', JSON.stringify(availableStatuses));
             renderStatusSelector();
-            renderModelsGrid(); 
-            updateFilterMenu(allProjects); 
+            renderModelsGrid();
+            updateFilterMenu(allProjects);
         }
 
         function selectStatus(name) {
@@ -389,9 +389,9 @@
             availableStatuses.forEach(status => {
                 const isSelected = selectedStatus === status.name;
                 const ringClass = isSelected ? 'ring-2 ring-offset-1 ring-slate-800 dark:ring-white dark:ring-offset-gemini-bg' : '';
-                
+
                 const html = `
-                    <div class="relative group flex items-center gap-1 px-2 py-1 rounded-md cursor-pointer transition-all ${ringClass}" 
+                    <div class="relative group flex items-center gap-1 px-2 py-1 rounded-md cursor-pointer transition-all ${ringClass}"
                          style="background-color: ${status.color}20; border: 1px solid ${status.color}50;"
                          onclick="selectStatus('${status.name}')">
                         <span class="text-xs font-bold uppercase tracking-wide" style="color: ${status.color};">${status.name}</span>
@@ -428,12 +428,12 @@
             if (sortMode === 'new_desc') sortMode = 'new_asc';
             else if (sortMode === 'new_asc') sortMode = 'status_asc';
             else sortMode = 'new_desc';
-            
+
             const btn = document.getElementById('sort-btn');
             if (sortMode === 'new_desc') btn.innerHTML = `<span data-i18n="sortDesc">${t.sortDesc}</span>`;
             if (sortMode === 'new_asc') btn.innerHTML = `<span data-i18n="sortAsc">${t.sortAsc}</span>`;
             if (sortMode === 'status_asc') btn.innerHTML = `<span data-i18n="sortStat">${t.sortStat}</span>`;
-            
+
             renderModelsGrid();
         }
 
@@ -461,7 +461,7 @@
 
             const ul = document.getElementById('filter-status-list');
             ul.innerHTML = `<li><button onclick="setStatusFilter(null)" class="w-full text-left px-4 py-2 text-sm text-slate-700 dark:text-gemini-text hover:bg-slate-100 dark:hover:bg-gemini-hover transition-colors" data-i18n="showAll">${t.showAll}</button></li>`;
-            
+
             statuses.forEach(status => {
                 const customStatus = availableStatuses.find(s => s.name === status);
                 const dotColor = customStatus ? customStatus.color : '#64748b';
@@ -472,7 +472,7 @@
         function setFilter(type, value) {
             const t = isEnglish ? translations.en : translations.de;
             currentFilter = { type, value };
-            
+
             const titleElement = document.getElementById('grid-view-title');
             if (type === 'category') titleElement.innerText = value; // Kategorie Name direkt
             else if (type === 'tag') titleElement.innerText = `#${value}`;
@@ -480,10 +480,10 @@
                 titleElement.setAttribute('data-i18n', 'allModels');
                 titleElement.innerText = t.allModels;
             }
-            
+
             showGridView();
-            renderModelsGrid(); 
-            renderSidebar(allProjects); 
+            renderModelsGrid();
+            renderSidebar(allProjects);
         }
 
         function openNewProject() {
@@ -491,19 +491,19 @@
             editingProjectId = null;
             currentFiles = [];
             currentCoverImage = null;
-            selectedStatus = null; 
-            
+            selectedStatus = null;
+
             document.getElementById('editor-title').innerText = t.newProject;
             document.getElementById('editor-title').setAttribute('data-i18n', 'newProject');
-            
+
             ['internal-title','category','public-title','tags','material','hardware','public-description','notes','ai-problem','ai-audience','ai-features'].forEach(id => {
                 document.getElementById(id).value = '';
             });
-            
+
             document.getElementById('delete-project-btn').classList.add('hidden'); // Verstecken bei neu
-            
+
             renderStatusSelector();
-            renderUploadedFiles(); 
+            renderUploadedFiles();
             document.getElementById('grid-view').classList.add('hidden');
             document.getElementById('detail-view').classList.remove('hidden');
         }
@@ -531,9 +531,9 @@
             selectedStatus = project.status || null;
             try { currentFiles = JSON.parse(project.files_json || "[]"); } catch(e) { currentFiles = []; }
             currentCoverImage = project.cover_image;
-            
+
             document.getElementById('delete-project-btn').classList.remove('hidden'); // Einblenden bei Edit
-            
+
             renderStatusSelector();
             renderUploadedFiles();
             document.getElementById('grid-view').classList.add('hidden');
@@ -543,7 +543,7 @@
         async function deleteProject() {
             const t = isEnglish ? translations.en : translations.de;
             if (!confirm(t.delConfirm)) return;
-            
+
             try {
                 const response = await fetch(`${API_URL}/api/projects/${editingProjectId}`, { method: 'DELETE' });
                 if (!response.ok) throw new Error('Löschen fehlgeschlagen');
@@ -570,7 +570,7 @@
             const catUl = document.getElementById('sidebar-categories');
             const isAllActive = currentFilter.type === 'all';
             catUl.innerHTML = `<li><button onclick="setFilter('all', null)" class="${isAllActive ? activeClass : inactiveClass}"><i data-lucide="layout-grid" class="w-4 h-4"></i> <span data-i18n="allModels">${t.allModels}</span></button></li>`;
-            
+
             categories.forEach(cat => {
                 const isActive = currentFilter.type === 'category' && currentFilter.value === cat;
                 catUl.innerHTML += `<li><button onclick="setFilter('category', '${cat}')" class="${isActive ? activeClass : inactiveClass}"><i data-lucide="folder" class="w-4 h-4"></i> ${cat}</button></li>`;
@@ -579,7 +579,7 @@
             const tagUl = document.getElementById('sidebar-tags');
             tagUl.innerHTML = '';
             if(tags.size === 0) tagUl.innerHTML = `<li class="text-sm text-slate-500 px-3">Keine Tags</li>`;
-            
+
             tags.forEach(tag => {
                 const isActive = currentFilter.type === 'tag' && currentFilter.value === tag;
                 tagUl.innerHTML += `<li><button onclick="setFilter('tag', '${tag}')" class="${isActive ? activeClass : inactiveClass}"><i data-lucide="tag" class="w-4 h-4"></i> ${tag}</button></li>`;
@@ -592,7 +592,7 @@
             const t = isEnglish ? translations.en : translations.de;
             const grid = document.getElementById('model-grid');
             const countLabel = document.getElementById('project-count');
-            
+
             let filteredProjects = allProjects;
 
             if (currentFilter.type === 'category') {
@@ -612,7 +612,7 @@
                 if (sortMode === 'new_desc') return b.id - a.id;
                 if (sortMode === 'new_asc') return a.id - b.id;
                 if (sortMode === 'status_asc') {
-                    const statA = a.status || 'zzzz'; 
+                    const statA = a.status || 'zzzz';
                     const statB = b.status || 'zzzz';
                     return statA.localeCompare(statB);
                 }
@@ -620,17 +620,19 @@
             });
 
             countLabel.innerText = `${filteredProjects.length} Projekte`;
-            grid.innerHTML = ''; 
+            grid.innerHTML = '';
 
             if (filteredProjects.length === 0) {
                 grid.innerHTML = `<div class="col-span-full text-center py-10 text-slate-500" data-i18n="noProj">${t.noProj}</div>`;
                 return;
             }
 
-            filteredProjects.forEach(model => {
+            // ⚡ Bolt Optimization: Batch DOM updates by generating HTML strings in a loop and assigning them
+            // to innerHTML once. This prevents multiple expensive reflows/repaints compared to insertAdjacentHTML.
+            const allCardsHTML = filteredProjects.map(model => {
                 const title = model.public_title || model.internal_title || 'Unbenannt';
                 const category = model.category || "Allgemein";
-                
+
                 let imgUrl = "https://placehold.co/400x300/e2e8f0/64748b?text=Kein+Bild";
                 if (model.cover_image && model.files_json) {
                     try {
@@ -639,9 +641,9 @@
                         if (coverFile) imgUrl = coverFile.path;
                     } catch(e) {}
                 }
-                
+
                 const rawTags = model.tags ? model.tags.split(',').map(tg => tg.trim()).filter(tg => tg) : [];
-                const tagsHtml = rawTags.map(tag => 
+                const tagsHtml = rawTags.map(tag =>
                     `<span class="inline-block bg-slate-100 text-slate-500 dark:bg-gemini-hover dark:text-gemini-muted text-xs px-2 py-1 rounded-md mr-1 mb-1">#${tag}</span>`
                 ).join('');
 
@@ -649,14 +651,15 @@
                 if (model.status && model.status.trim() !== '') {
                     const statusText = model.status.trim();
                     const customStatus = availableStatuses.find(s => s.name === statusText);
-                    const bgColor = customStatus ? customStatus.color : '#64748b'; 
+                    const bgColor = customStatus ? customStatus.color : '#64748b';
                     statusHtml = `<div class="absolute top-2 right-2 flex gap-1"><span style="background-color: ${bgColor}; color: #fff;" class="text-[10px] font-bold px-2 py-1 rounded shadow-sm uppercase tracking-wide">${statusText}</span></div>`;
                 }
 
-                const cardHTML = `
+                return `
                     <div onclick="openProject(${model.id})" class="bg-white dark:bg-gemini-surface border border-slate-200 dark:border-gemini-border rounded-xl overflow-hidden hover:shadow-lg transition-shadow duration-300 group cursor-pointer flex flex-col">
                         <div class="relative h-48 bg-slate-100 dark:bg-gemini-bg flex-shrink-0">
-                            <img src="${imgUrl}" alt="${title}" class="w-full h-full object-cover opacity-90">
+                            <!-- ⚡ Bolt Optimization: loading="lazy" defers loading off-screen images to save bandwidth & CPU. decoding="async" prevents blocking the main thread -->
+                            <img src="${imgUrl}" alt="${title}" loading="lazy" decoding="async" class="w-full h-full object-cover opacity-90">
                             ${statusHtml}
                         </div>
                         <div class="p-4 flex-1">
@@ -666,8 +669,8 @@
                         </div>
                     </div>
                 `;
-                grid.insertAdjacentHTML('beforeend', cardHTML);
-            });
+            }).join('');
+            grid.innerHTML = allCardsHTML;
         }
 
         async function fetchAndRenderModels() {
@@ -679,7 +682,7 @@
 
                 renderSidebar(allProjects);
                 updateFilterMenu(allProjects);
-                renderModelsGrid(); 
+                renderModelsGrid();
             } catch (error) {
                 grid.innerHTML = `<div class="col-span-full text-center py-10 text-red-500" data-i18n="errorBackend">${t.errorBackend || "Fehler beim Laden. Backend an?"}</div>`;
             }
@@ -711,14 +714,14 @@
             try {
                 const response = await fetch(`${API_URL}/api/upload`, { method: 'POST', body: formData });
                 if (!response.ok) throw new Error('Upload fehlgeschlagen');
-                
+
                 const data = await response.json();
                 data.uploaded.forEach(file => {
                     currentFiles.push(file);
                     const ext = file.filename.split('.').pop().toLowerCase();
                     if (['jpg', 'jpeg', 'png', 'webp'].includes(ext) && !currentCoverImage) currentCoverImage = file.filename;
                 });
-                
+
                 renderUploadedFiles();
                 dropText.setAttribute('data-i18n', 'dropFiles');
                 dropText.innerText = t.dropFiles;
@@ -756,7 +759,7 @@
                 const ul = document.getElementById(targetListId);
                 const li = document.createElement('li');
                 li.className = "flex items-center justify-between p-3 bg-slate-50 dark:bg-[#1A1A1C] border border-slate-100 dark:border-gemini-border rounded-md";
-                
+
                 let visualHtml = `<i data-lucide="${icon}" class="w-5 h-5 ${iconColor}"></i>`;
                 if (isImage) visualHtml = `<img src="${file.path}" alt="${file.filename}" class="w-8 h-8 rounded object-cover">`;
 
@@ -790,7 +793,7 @@
             const originalContent = btn.innerHTML;
             btn.disabled = true;
             btn.innerHTML = `<i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i> ${t.aiWork}`;
-            lucide.createIcons(); 
+            lucide.createIcons();
 
             const payload = {
                 problem: document.getElementById('ai-problem').value || "Nicht spezifiziert",
@@ -809,7 +812,7 @@
                 const data = await response.json();
                 document.getElementById('public-title').value = data.title;
                 document.getElementById('public-description').value = data.description;
-                
+
                 btn.innerHTML = `<i data-lucide="check" class="w-4 h-4"></i> ${t.aiDone}`;
                 lucide.createIcons();
                 setTimeout(() => { btn.innerHTML = originalContent; btn.disabled = false; lucide.createIcons(); applyTranslations(); }, 2000);
@@ -847,14 +850,14 @@
                 const url = editingProjectId ? `${API_URL}/api/projects/${editingProjectId}` : `${API_URL}/api/projects`;
                 const response = await fetch(url, { method: method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
                 if (!response.ok) throw new Error('Speichern fehlgeschlagen');
-                
+
                 btn.innerHTML = `<i data-lucide="check" class="w-4 h-4"></i> <span data-i18n="btnSaved">${t.btnSaved}</span>`;
                 setTimeout(() => {
                     btn.innerHTML = `<i data-lucide="save" class="w-4 h-4"></i> <span data-i18n="btnSave">${t.btnSave}</span>`;
                     btn.disabled = false;
                     lucide.createIcons();
                     showGridView();
-                    fetchAndRenderModels(); 
+                    fetchAndRenderModels();
                 }, 1000);
             } catch (error) {
                 alert("Fehler beim Speichern!");

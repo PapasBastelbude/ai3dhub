@@ -1,0 +1,3 @@
+## 2025-02-27 - Batching DOM Updates and Lazy Loading Images
+**Learning:** In vanilla JS applications, updating the DOM inside a loop (e.g. `grid.insertAdjacentHTML('beforeend', cardHTML)` for a list of 3D models) triggers unnecessary sequential reflows and repaints, drastically hurting performance as the list grows. Additionally, unoptimized images loaded synchronously block the main thread and consume bandwidth for off-screen content.
+**Action:** Always batch DOM updates by building a single HTML string (via `.map().join('')` or array push and join) and inserting it once via `innerHTML`. Always add `loading="lazy" decoding="async"` to images in long lists (like grid views) to prioritize critical rendering.

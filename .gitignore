@@ -1,5 +1,4 @@
-Environments
-
+# Environments
 venv/
 .env
 
@@ -7,9 +6,9 @@ Cache
 
 pycache/
 *.pyc
+.pytest_cache/
 
-Daten & Uploads (Sollen beim Nutzer bleiben, nicht ins Repo!)
-
+# Daten & Uploads (Sollen beim Nutzer bleiben, nicht ins Repo!)
 uploads/
 data/
 ai3dhub.db
