@@ -113,6 +113,10 @@
                 <input type="text" data-i18n-placeholder="search" placeholder="Suche Modelle, Tags, KI-Beschreibungen..." class="w-full pl-10 pr-4 py-2 border border-slate-300 dark:border-gemini-border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm dark:bg-gemini-bg dark:text-gemini-text">
             </div>
             <div class="flex items-center gap-5">
+                <button onclick="refreshThumbnails()" id="refresh-thumb-btn" class="flex items-center gap-1 text-sm font-bold text-slate-500 hover:text-slate-800 dark:text-gemini-muted dark:hover:text-white transition-colors" title="Refresh Thumbnails">
+                    <i data-lucide="refresh-cw" class="w-4 h-4"></i>
+                    <span class="hidden sm:inline">Refresh Thumbnails</span>
+                </button>
                 <button onclick="toggleLanguage()" class="text-sm font-bold text-slate-500 hover:text-slate-800 dark:text-gemini-muted dark:hover:text-white transition-colors"><span id="lang-switch">EN</span></button>
                 <button onclick="toggleDarkMode()" class="text-slate-500 hover:text-slate-800 dark:text-gemini-muted dark:hover:text-white transition-colors">
                     <i data-lucide="moon" class="w-5 h-5 block dark:hidden"></i>
@@ -538,6 +542,43 @@
             renderUploadedFiles();
             document.getElementById('grid-view').classList.add('hidden');
             document.getElementById('detail-view').classList.remove('hidden');
+        }
+
+        async function refreshThumbnails() {
+            const btn = document.getElementById('refresh-thumb-btn');
+            const icon = btn.querySelector('i') || btn.querySelector('svg');
+            const originalClass = icon ? (icon.getAttribute('class') || icon.className.baseVal || icon.className) : '';
+
+            if (icon) {
+                // Add spinning animation
+                if (typeof icon.className === 'string') {
+                    icon.className = originalClass + ' animate-spin';
+                } else {
+                    icon.setAttribute('class', originalClass + ' animate-spin');
+                }
+            }
+            btn.disabled = true;
+
+            try {
+                const response = await fetch(`${API_URL}/api/thumbnails/refresh`, { method: 'POST' });
+                if (!response.ok) throw new Error('Refresh failed');
+
+                const t = isEnglish ? translations.en : translations.de;
+                alert(isEnglish ? "Thumbnails successfully refreshed!" : "Thumbnails erfolgreich aktualisiert!");
+                await fetchAndRenderModels();
+            } catch (error) {
+                console.error(error);
+                alert(isEnglish ? "Error refreshing thumbnails." : "Fehler beim Aktualisieren der Thumbnails.");
+            } finally {
+                if (icon) {
+                    if (typeof icon.className === 'string') {
+                        icon.className = originalClass;
+                    } else {
+                        icon.setAttribute('class', originalClass);
+                    }
+                }
+                btn.disabled = false;
+            }
         }
 
         async function deleteProject() {
