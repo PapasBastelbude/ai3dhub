@@ -58,29 +58,45 @@ def generate_missing_thumbnails(force: bool = False):
             if not project.cover_image or not project.internal_title:
                 continue
 
+            # WICHTIG: Falls alte Einträge volle Pfade enthalten, isolieren wir hier den Dateinamen
+            cover_filename = os.path.basename(project.cover_image)
+
             safe_title = re.sub(r'[^a-zA-Z0-9_\-]', '_', project.internal_title).strip('_')
             if not safe_title:
                 safe_title = "projekt"
 
             target_dir = UPLOAD_DIR / safe_title
-            target_path = target_dir / project.cover_image
-            thumb_path = target_dir / f"thumb_{project.cover_image}"
+            target_path = target_dir / cover_filename
+            thumb_path = target_dir / f"thumb_{cover_filename}"
 
-            if target_path.exists() and target_path.is_file() and (force or not thumb_path.exists()):
+            # Prüfen, ob das Originalbild überhaupt im Ordner existiert
+            if not target_path.exists() or not target_path.is_file():
+                print(f"[Warnung] Projekt '{project.internal_title}': Originalbild nicht gefunden unter {target_path}")
+                continue
+
+            if force or not thumb_path.exists():
+                print(f"[Info] Projekt '{project.internal_title}': Generiere Thumbnail für {cover_filename}...")
                 try:
                     with Image.open(target_path) as img:
+                        # Falls Bild Transparenzen hat, beim Speichern als JPG in RGB wandeln
                         if img.mode in ("RGBA", "P"):
                             img = img.convert("RGB")
                         img.thumbnail((400, 400))
+                        # Speichere explizit, falls die Dateiendung fehlt
                         img.save(thumb_path)
-                except Exception:
-                    pass
+                    print(f"[Erfolg] Projekt '{project.internal_title}': Thumbnail erfolgreich erstellt!")
+                except Exception as e:
+                    print(f"[Fehler] Projekt '{project.internal_title}': Konnte Thumbnail nicht erstellen - {str(e)}")
+            elif thumb_path.exists() and not force:
+                # Das kann nützlich sein, um zu sehen, ob er Projekte überspringt
+                print(f"[Info] Projekt '{project.internal_title}': Thumbnail existiert bereits, überspringe.")
     finally:
         db.close()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup logic
+    print("Starte Anwendung und prüfe Thumbnails...")
     generate_missing_thumbnails()
     yield
     # Shutdown logic
@@ -176,7 +192,7 @@ def process_project_files(internal_title: str, files_json_str: str, cover_image:
             file["path"] = f"/uploads/{safe_title}/{filename}"
 
         # Thumbnail generieren wenn es das Coverbild ist (auch für existierende Bilder ohne Verschieben)
-        if cover_image and filename == cover_image and target_path.exists():
+        if cover_image and filename == os.path.basename(cover_image) and target_path.exists():
             thumb_path = target_dir / f"thumb_{filename}"
             if not thumb_path.exists():
                 try:
@@ -284,6 +300,7 @@ def delete_project(project_id: int, db: Session = Depends(get_db)):
 @app.post("/api/thumbnails/refresh")
 def refresh_thumbnails():
     try:
+        print("=== Manuelles Thumbnail Refresh gestartet ===")
         generate_missing_thumbnails(force=True)
         return {"message": "Thumbnails successfully refreshed"}
     except Exception as e:
