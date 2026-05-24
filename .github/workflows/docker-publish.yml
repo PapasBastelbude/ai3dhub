@@ -1,0 +1,27 @@
+name: Publish Docker Image
+
+on:
+  push:
+    branches:
+      - main # oder master, je nachdem wie dein Hauptbranch heißt
+
+jobs:
+  push_to_registry:
+    name: Build and Push Docker image
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the repo
+        uses: actions/checkout@v4
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: drondernei/ai3dhub:latest
