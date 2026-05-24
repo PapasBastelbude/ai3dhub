@@ -24,7 +24,7 @@
   <DonateText>Support the development!</DonateText>
   <DonateLink>https://buymeacoffee.com/papasbastelbude</DonateLink>
   <Requires>Anthropic API Key (Claude) for AI features.</Requires>
-  <Config Name="WebUI Port" Target="8000" Default="8000" Mode="tcp" Description="The port the WebUI runs on." Type="Port" Display="always" Required="true" Mask="false">8000</Config>
+  <Config Name="WebUI Port" Target="8000" Default="8787" Mode="tcp" Description="The port the WebUI runs on." Type="Port" Display="always" Required="true" Mask="false">8787</Config>
   <Config Name="Database Storage" Target="/app/data" Default="/mnt/user/appdata/ai3dhub/data" Mode="rw" Description="Path to store the SQLite database securely." Type="Path" Display="always" Required="true" Mask="false">/mnt/user/appdata/ai3dhub/data</Config>
   <Config Name="3D Assets Storage" Target="/app/uploads" Default="/mnt/user/3D_Assets/ai3dhub/" Mode="rw" Description="Path where your actual 3D models and images are stored. You can map this to an existing share." Type="Path" Display="always" Required="true" Mask="false">/mnt/user/3D_Assets/ai3dhub/</Config>
   <Config Name="Anthropic API Key" Target="ANTHROPIC_API_KEY" Default="" Mode="" Description="Your Claude API Key for text generation. E.g. sk-ant-..." Type="Variable" Display="always" Required="false" Mask="true"></Config>
