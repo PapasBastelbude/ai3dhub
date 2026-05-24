@@ -10,6 +10,7 @@ import shutil
 import json
 import re
 from pathlib import Path
+from PIL import Image
 
 # ---------------------------------------------------------
 # 1. Datenbank Setup (SQLite via SQLAlchemy)
@@ -90,7 +91,7 @@ def get_db():
         db.close()
 
 # Hilfsfunktion: Verschiebt Temp-Dateien in den echten Projektordner
-def process_project_files(internal_title: str, files_json_str: str):
+def process_project_files(internal_title: str, files_json_str: str, cover_image: str | None = None):
     if not files_json_str or files_json_str == "[]":
         return files_json_str
 
@@ -109,15 +110,15 @@ def process_project_files(internal_title: str, files_json_str: str):
 
     for file in files:
         path_str = file.get("path", "")
+        filename = os.path.basename(file.get("filename", ""))
+        if not filename:
+            continue
+
+        target_path = target_dir / filename
+
         # Wenn die Datei noch im Temp-Ordner liegt, verschieben wir sie
         if "/uploads/temp/" in path_str:
-            # Saniert den Dateinamen um Path-Traversal zu verhindern
-            filename = os.path.basename(file.get("filename", ""))
-            if not filename:
-                continue
-
             source_path = TEMP_DIR / filename
-            target_path = target_dir / filename
 
             if source_path.exists() and source_path.is_file():
                 # Zielpfad explizit löschen, falls er bereits existiert (wichtig für Windows-Overwrite)
@@ -137,6 +138,19 @@ def process_project_files(internal_title: str, files_json_str: str):
             file["filename"] = filename
             file["path"] = f"/uploads/{safe_title}/{filename}"
 
+        # Thumbnail generieren wenn es das Coverbild ist (auch für existierende Bilder ohne Verschieben)
+        if cover_image and filename == cover_image and target_path.exists():
+            thumb_path = target_dir / f"thumb_{filename}"
+            if not thumb_path.exists():
+                try:
+                    with Image.open(target_path) as img:
+                        if img.mode in ("RGBA", "P"):
+                            img = img.convert("RGB")
+                        img.thumbnail((400, 400))
+                        img.save(thumb_path)
+                except Exception:
+                    pass
+
     return json.dumps(files)
 
 # ---------------------------------------------------------
@@ -144,7 +158,7 @@ def process_project_files(internal_title: str, files_json_str: str):
 # ---------------------------------------------------------
 
 @app.post("/api/upload")
-async def upload_files(files: list[UploadFile] = File(...)):
+def upload_files(files: list[UploadFile] = File(...)):
     """ Speichert Dateien vorübergehend im temp Ordner """
     uploaded_data = []
     for file in files:
@@ -167,14 +181,14 @@ async def upload_files(files: list[UploadFile] = File(...)):
     return {"uploaded": uploaded_data}
 
 @app.get("/api/projects")
-async def get_projects(db: Session = Depends(get_db)):
+def get_projects(db: Session = Depends(get_db)):
     return db.query(Project).all()
 
 @app.post("/api/projects")
-async def create_project(project: ProjectCreate, db: Session = Depends(get_db)):
+def create_project(project: ProjectCreate, db: Session = Depends(get_db)):
     try:
         # Dateien verschieben, bevor wir in die DB speichern!
-        project.files_json = process_project_files(project.internal_title, project.files_json)
+        project.files_json = process_project_files(project.internal_title, project.files_json, project.cover_image)
 
         db_project = Project(**project.model_dump())
         db.add(db_project)
@@ -186,14 +200,14 @@ async def create_project(project: ProjectCreate, db: Session = Depends(get_db)):
         raise HTTPException(status_code=500, detail=f"Datenbankfehler: {str(e)}")
 
 @app.put("/api/projects/{project_id}")
-async def update_project(project_id: int, project: ProjectCreate, db: Session = Depends(get_db)):
+def update_project(project_id: int, project: ProjectCreate, db: Session = Depends(get_db)):
     try:
         db_project = db.query(Project).filter(Project.id == project_id).first()
         if not db_project:
             raise HTTPException(status_code=404, detail="Projekt nicht gefunden")
 
         # Dateien verschieben, bevor wir in die DB speichern!
-        project.files_json = process_project_files(project.internal_title, project.files_json)
+        project.files_json = process_project_files(project.internal_title, project.files_json, project.cover_image)
 
         for key, value in project.model_dump().items():
             setattr(db_project, key, value)
@@ -206,7 +220,7 @@ async def update_project(project_id: int, project: ProjectCreate, db: Session = 
 
 # NEU: DELETE Route für Projekte und deren Ordner
 @app.delete("/api/projects/{project_id}")
-async def delete_project(project_id: int, db: Session = Depends(get_db)):
+def delete_project(project_id: int, db: Session = Depends(get_db)):
     try:
         db_project = db.query(Project).filter(Project.id == project_id).first()
         if not db_project:
