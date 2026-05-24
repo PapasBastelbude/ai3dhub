@@ -1,3 +1,4 @@
+from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException, File, UploadFile, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -44,11 +45,47 @@ Base.metadata.create_all(bind=engine)
 # ---------------------------------------------------------
 # 2. FastAPI App Initialisierung & Ordner
 # ---------------------------------------------------------
-app = FastAPI(title="AI-3D-Hub API")
 
 UPLOAD_DIR = Path("uploads")
 TEMP_DIR = UPLOAD_DIR / "temp"
 TEMP_DIR.mkdir(parents=True, exist_ok=True)
+
+def generate_missing_thumbnails():
+    db = SessionLocal()
+    try:
+        projects = db.query(Project).all()
+        for project in projects:
+            if not project.cover_image or not project.internal_title:
+                continue
+
+            safe_title = re.sub(r'[^a-zA-Z0-9_\-]', '_', project.internal_title).strip('_')
+            if not safe_title:
+                safe_title = "projekt"
+
+            target_dir = UPLOAD_DIR / safe_title
+            target_path = target_dir / project.cover_image
+            thumb_path = target_dir / f"thumb_{project.cover_image}"
+
+            if target_path.exists() and target_path.is_file() and not thumb_path.exists():
+                try:
+                    with Image.open(target_path) as img:
+                        if img.mode in ("RGBA", "P"):
+                            img = img.convert("RGB")
+                        img.thumbnail((400, 400))
+                        img.save(thumb_path)
+                except Exception:
+                    pass
+    finally:
+        db.close()
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Startup logic
+    generate_missing_thumbnails()
+    yield
+    # Shutdown logic
+
+app = FastAPI(title="AI-3D-Hub API", lifespan=lifespan)
 
 # Uploads für Downloads/Bilder freigeben
 app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
