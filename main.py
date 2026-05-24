@@ -50,7 +50,7 @@ UPLOAD_DIR = Path("uploads")
 TEMP_DIR = UPLOAD_DIR / "temp"
 TEMP_DIR.mkdir(parents=True, exist_ok=True)
 
-def generate_missing_thumbnails():
+def generate_missing_thumbnails(force: bool = False):
     db = SessionLocal()
     try:
         projects = db.query(Project).all()
@@ -66,7 +66,7 @@ def generate_missing_thumbnails():
             target_path = target_dir / project.cover_image
             thumb_path = target_dir / f"thumb_{project.cover_image}"
 
-            if target_path.exists() and target_path.is_file() and not thumb_path.exists():
+            if target_path.exists() and target_path.is_file() and (force or not thumb_path.exists()):
                 try:
                     with Image.open(target_path) as img:
                         if img.mode in ("RGBA", "P"):
@@ -279,6 +279,15 @@ def delete_project(project_id: int, db: Session = Depends(get_db)):
     except Exception as e:
         db.rollback()
         raise HTTPException(status_code=500, detail=f"Fehler beim Löschen: {str(e)}")
+
+
+@app.post("/api/thumbnails/refresh")
+def refresh_thumbnails():
+    try:
+        generate_missing_thumbnails(force=True)
+        return {"message": "Thumbnails successfully refreshed"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error generating thumbnails: {str(e)}")
 
 
 @app.post("/api/generate-texts")
