@@ -634,11 +634,17 @@
                 const category = model.category || "Allgemein";
 
                 let imgUrl = "https://placehold.co/400x300/e2e8f0/64748b?text=Kein+Bild";
+                let thumbUrl = imgUrl;
                 if (model.cover_image && model.files_json) {
                     try {
                         const parsedFiles = JSON.parse(model.files_json);
                         const coverFile = parsedFiles.find(f => f.filename === model.cover_image);
-                        if (coverFile) imgUrl = coverFile.path;
+                        if (coverFile) {
+                            imgUrl = coverFile.path;
+                            const pathParts = coverFile.path.split('/');
+                            const filename = pathParts.pop();
+                            thumbUrl = pathParts.join('/') + '/thumb_' + filename;
+                        }
                     } catch(e) {}
                 }
 
@@ -659,7 +665,7 @@
                     <div onclick="openProject(${model.id})" class="bg-white dark:bg-gemini-surface border border-slate-200 dark:border-gemini-border rounded-xl overflow-hidden hover:shadow-lg transition-shadow duration-300 group cursor-pointer flex flex-col">
                         <div class="relative h-48 bg-slate-100 dark:bg-gemini-bg flex-shrink-0">
                             <!-- ⚡ Bolt Optimization: loading="lazy" defers loading off-screen images to save bandwidth & CPU. decoding="async" prevents blocking the main thread -->
-                            <img src="${imgUrl}" alt="${title}" loading="lazy" decoding="async" class="w-full h-full object-cover opacity-90">
+                            <img src="${thumbUrl}" onerror="this.onerror=null;this.src='${imgUrl}';" alt="${title}" loading="lazy" decoding="async" class="w-full h-full object-cover opacity-90">
                             ${statusHtml}
                         </div>
                         <div class="p-4 flex-1">
