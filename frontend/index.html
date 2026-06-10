@@ -64,6 +64,7 @@
             promptArea.disabled = !checkbox.checked;
             promptArea.classList.toggle('opacity-50', !checkbox.checked);
             resetBtn.classList.toggle('hidden', !checkbox.checked);
+            localStorage.setItem('ai3dhub_edit_prompt', checkbox.checked);
         }
 
         // Globaler Klick-Listener um das Filter-Menü zu schließen
@@ -832,7 +833,29 @@
 
         function resetPrompt() {
             document.getElementById('ai-prompt').value = DEFAULT_AI_PROMPT;
+            localStorage.removeItem('ai3dhub_custom_prompt');
         }
+
+        function initAiPrompt() {
+            const checkbox = document.getElementById('edit-prompt');
+            const promptArea = document.getElementById('ai-prompt');
+
+            const savedEditMode = localStorage.getItem('ai3dhub_edit_prompt') === 'true';
+            const savedPrompt = localStorage.getItem('ai3dhub_custom_prompt');
+
+            checkbox.checked = savedEditMode;
+            if (savedPrompt) {
+                promptArea.value = savedPrompt;
+            } else {
+                promptArea.value = DEFAULT_AI_PROMPT;
+            }
+
+            togglePromptEdit();
+        }
+
+        document.getElementById('ai-prompt').addEventListener('input', (e) => {
+            localStorage.setItem('ai3dhub_custom_prompt', e.target.value);
+        });
 
         async function generateTexts() {
             const t = isEnglish ? translations.en : translations.de;
@@ -913,7 +936,7 @@
             }
         }
 
-        resetPrompt(); // Initialisiert das Feld sauber beim ersten Laden der Seite
+        initAiPrompt(); // Initialisiert das Feld sauber beim ersten Laden der Seite
         fetchAndRenderModels();
     </script>
 </body>
