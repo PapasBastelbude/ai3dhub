@@ -78,6 +78,14 @@ AI-3D-Hub is a lightweight, self-hosted Digital Asset Management (DAM) tool desi
 - You can upload multiple files (STL, 3MF, F3D, images) to a project.
 - Files are initially staged in a temporary directory (`uploads/temp/`) and automatically moved to a sanitized, project-specific directory (`uploads/[Project_Name]/`) when the project is saved or updated.
 
+### Automated Import (API Importer)
+- Every sub folder of a local folder becomes its own project, including nested folders (e.g. `v2/part.stl`).
+- The app generates its own API key. Find it in the web interface under **API Access** (key icon, top right). You can regenerate it there, which revokes the old key.
+- A small, dependency-free Python script is included in [`api_importer/`](api_importer/README.md): configure URL, API key, status and after-upload behaviour in a `.env` file and run it (Windows: double-click `API Importer starten.bat`).
+- Endpoints (header `X-API-Key` required):
+  - `GET /api/import/check[?title=...]`: connection/key test, optionally checks whether a project already exists
+  - `POST /api/import` (multipart): `title`, `files[]`, `paths[]` (relative path per file), optional `status`, `tags`, `category`, `on_conflict=skip|suffix`
+
 ### Using AI Generation
 - When editing or creating a project, you can use the AI feature to generate compelling titles and descriptions.
 - Provide context about the 3D model, such as the problem it solves, the target audience, and its features.

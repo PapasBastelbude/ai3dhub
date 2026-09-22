@@ -1,5 +1,5 @@
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, HTTPException, File, UploadFile, Depends
+from fastapi import FastAPI, HTTPException, File, UploadFile, Depends, Form, Header
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
@@ -10,7 +10,11 @@ import os
 import shutil
 import json
 import re
+import secrets
+import uuid
 from pathlib import Path
+from typing import Literal
+from urllib.parse import quote
 from PIL import Image
 
 # ---------------------------------------------------------
@@ -40,6 +44,12 @@ class Project(Base):
     cover_image = Column(String, nullable=True)
     files_json = Column(Text, nullable=True, default="[]")
 
+class Setting(Base):
+    # Einfacher Key/Value-Speicher für App-Einstellungen (z.B. den API-Key)
+    __tablename__ = "settings"
+    key = Column(String, primary_key=True)
+    value = Column(Text, nullable=True)
+
 Base.metadata.create_all(bind=engine)
 
 # ---------------------------------------------------------
@@ -50,6 +60,41 @@ UPLOAD_DIR = Path("uploads")
 TEMP_DIR = UPLOAD_DIR / "temp"
 TEMP_DIR.mkdir(parents=True, exist_ok=True)
 
+IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp"}
+
+def safe_folder_name(internal_title: str) -> str:
+    """ Macht den Projekttitel ordner-tauglich (Sonderzeichen entfernen) """
+    safe_title = re.sub(r'[^a-zA-Z0-9_\-]', '_', internal_title or "").strip('_')
+    return safe_title or "projekt"
+
+def resolve_project_file(project_dir: Path, relative_name: str) -> Path | None:
+    """ Findet eine Datei im Projektordner. Unterstützt relative Pfade (z.B. 'v2/bild.jpg')
+    und fällt für alte Einträge auf den reinen Dateinamen zurück. Verlässt nie den Projektordner. """
+    base = project_dir.resolve()
+    for candidate in (relative_name, os.path.basename(relative_name)):
+        if not candidate:
+            continue
+        path = (project_dir / candidate).resolve()
+        if path.is_relative_to(base) and path.is_file():
+            return path
+    return None
+
+def create_thumbnail(image_path: Path, force: bool = False) -> bool:
+    """ Legt 'thumb_<name>' neben dem Bild an. Gibt False zurück, wenn es nicht geklappt hat. """
+    thumb_path = image_path.with_name(f"thumb_{image_path.name}")
+    if thumb_path.exists() and not force:
+        return True
+    try:
+        with Image.open(image_path) as img:
+            # Falls Bild Transparenzen hat, beim Speichern als JPG in RGB wandeln
+            if img.mode in ("RGBA", "P"):
+                img = img.convert("RGB")
+            img.thumbnail((400, 400))
+            img.save(thumb_path)
+        return True
+    except Exception:
+        return False
+
 def generate_missing_thumbnails(force: bool = False):
     db = SessionLocal()
     try:
@@ -58,35 +103,23 @@ def generate_missing_thumbnails(force: bool = False):
             if not project.cover_image or not project.internal_title:
                 continue
 
-            # WICHTIG: Falls alte Einträge volle Pfade enthalten, isolieren wir hier den Dateinamen
-            cover_filename = os.path.basename(project.cover_image)
+            target_dir = UPLOAD_DIR / safe_folder_name(project.internal_title)
 
-            safe_title = re.sub(r'[^a-zA-Z0-9_\-]', '_', project.internal_title).strip('_')
-            if not safe_title:
-                safe_title = "projekt"
-
-            target_dir = UPLOAD_DIR / safe_title
-            target_path = target_dir / cover_filename
-            thumb_path = target_dir / f"thumb_{cover_filename}"
+            # Cover kann ein relativer Pfad (Import mit Unterordnern) oder bei alten Einträgen ein voller Pfad sein
+            target_path = resolve_project_file(target_dir, project.cover_image)
 
             # Prüfen, ob das Originalbild überhaupt im Ordner existiert
-            if not target_path.exists() or not target_path.is_file():
-                print(f"[Warnung] Projekt '{project.internal_title}': Originalbild nicht gefunden unter {target_path}")
+            if target_path is None:
+                print(f"[Warnung] Projekt '{project.internal_title}': Originalbild '{project.cover_image}' nicht gefunden in {target_dir}")
                 continue
 
+            thumb_path = target_path.with_name(f"thumb_{target_path.name}")
             if force or not thumb_path.exists():
-                print(f"[Info] Projekt '{project.internal_title}': Generiere Thumbnail für {cover_filename}...")
-                try:
-                    with Image.open(target_path) as img:
-                        # Falls Bild Transparenzen hat, beim Speichern als JPG in RGB wandeln
-                        if img.mode in ("RGBA", "P"):
-                            img = img.convert("RGB")
-                        img.thumbnail((400, 400))
-                        # Speichere explizit, falls die Dateiendung fehlt
-                        img.save(thumb_path)
+                print(f"[Info] Projekt '{project.internal_title}': Generiere Thumbnail für {target_path.name}...")
+                if create_thumbnail(target_path, force=True):
                     print(f"[Erfolg] Projekt '{project.internal_title}': Thumbnail erfolgreich erstellt!")
-                except Exception as e:
-                    print(f"[Fehler] Projekt '{project.internal_title}': Konnte Thumbnail nicht erstellen - {str(e)}")
+                else:
+                    print(f"[Fehler] Projekt '{project.internal_title}': Konnte Thumbnail nicht erstellen")
             elif thumb_path.exists() and not force:
                 # Das kann nützlich sein, um zu sehen, ob er Projekte überspringt
                 print(f"[Info] Projekt '{project.internal_title}': Thumbnail existiert bereits, überspringe.")
@@ -98,6 +131,11 @@ async def lifespan(app: FastAPI):
     # Startup logic
     print("Starte Anwendung und prüfe Thumbnails...")
     generate_missing_thumbnails()
+    db = SessionLocal()
+    try:
+        get_or_create_api_key(db)
+    finally:
+        db.close()
     yield
     # Shutdown logic
 
@@ -143,6 +181,34 @@ def get_db():
     finally:
         db.close()
 
+# ---------------------------------------------------------
+# API-Key (für Skripte wie den API Importer)
+# ---------------------------------------------------------
+API_KEY_SETTING = "api_key"
+
+def _set_api_key(db: Session) -> str:
+    new_key = secrets.token_urlsafe(32)
+    setting = db.get(Setting, API_KEY_SETTING)
+    if setting:
+        setting.value = new_key
+    else:
+        db.add(Setting(key=API_KEY_SETTING, value=new_key))
+    db.commit()
+    return new_key
+
+def get_or_create_api_key(db: Session) -> str:
+    """ Die App erzeugt ihren API-Key selbst, sobald er zum ersten Mal gebraucht wird. """
+    setting = db.get(Setting, API_KEY_SETTING)
+    if setting and setting.value:
+        return setting.value
+    print("[Info] Neuer API-Key erzeugt (sichtbar in der WebUI unter 'API-Zugang').")
+    return _set_api_key(db)
+
+def require_api_key(x_api_key: str | None = Header(None), db: Session = Depends(get_db)):
+    expected = get_or_create_api_key(db)
+    if not x_api_key or not secrets.compare_digest(x_api_key, expected):
+        raise HTTPException(status_code=401, detail="Ungültiger oder fehlender API-Key (Header 'X-API-Key')")
+
 # Hilfsfunktion: Verschiebt Temp-Dateien in den echten Projektordner
 def process_project_files(internal_title: str, files_json_str: str, cover_image: str | None = None):
     if not files_json_str or files_json_str == "[]":
@@ -153,11 +219,7 @@ def process_project_files(internal_title: str, files_json_str: str, cover_image:
     except:
         return files_json_str
 
-    # Mache den Projekttitel ordner-tauglich (Sonderzeichen entfernen)
-    safe_title = re.sub(r'[^a-zA-Z0-9_\-]', '_', internal_title).strip('_')
-    if not safe_title:
-        safe_title = "projekt"
-
+    safe_title = safe_folder_name(internal_title)
     target_dir = UPLOAD_DIR / safe_title
     target_dir.mkdir(exist_ok=True)
 
@@ -191,18 +253,12 @@ def process_project_files(internal_title: str, files_json_str: str, cover_image:
             file["filename"] = filename
             file["path"] = f"/uploads/{safe_title}/{filename}"
 
-        # Thumbnail generieren wenn es das Coverbild ist (auch für existierende Bilder ohne Verschieben)
-        if cover_image and filename == os.path.basename(cover_image) and target_path.exists():
-            thumb_path = target_dir / f"thumb_{filename}"
-            if not thumb_path.exists():
-                try:
-                    with Image.open(target_path) as img:
-                        if img.mode in ("RGBA", "P"):
-                            img = img.convert("RGB")
-                        img.thumbnail((400, 400))
-                        img.save(thumb_path)
-                except Exception:
-                    pass
+        # Thumbnail generieren wenn es das Coverbild ist (auch für existierende Bilder ohne Verschieben).
+        # Importierte Dateien können in Unterordnern liegen, daher der relative Pfad aus 'filename'.
+        if cover_image and (file.get("filename") == cover_image or filename == os.path.basename(cover_image)):
+            cover_path = resolve_project_file(target_dir, file.get("filename", ""))
+            if cover_path:
+                create_thumbnail(cover_path)
 
     return json.dumps(files)
 
@@ -280,11 +336,7 @@ def delete_project(project_id: int, db: Session = Depends(get_db)):
             raise HTTPException(status_code=404, detail="Projekt nicht gefunden")
 
         # Festplatten-Ordner löschen
-        safe_title = re.sub(r'[^a-zA-Z0-9_\-]', '_', db_project.internal_title).strip('_')
-        if not safe_title:
-            safe_title = "projekt"
-
-        target_dir = UPLOAD_DIR / safe_title
+        target_dir = UPLOAD_DIR / safe_folder_name(db_project.internal_title)
         if target_dir.exists() and target_dir.is_dir():
             shutil.rmtree(target_dir) # Löscht den Ordner und alle Inhalte
 
@@ -325,6 +377,144 @@ async def generate_texts_with_claude(request: AIGenerationRequest):
     )
     parts = response.content[0].text.split("BESCHREIBUNG:")
     return {"title": parts[0].replace("TITEL:", "").strip(), "description": parts[1].strip() if len(parts) > 1 else ""}
+
+
+# ---------------------------------------------------------
+# 5. API-Zugang & Import (für den API Importer / Skripte)
+# ---------------------------------------------------------
+
+@app.get("/api/settings/api-key")
+def get_api_key(db: Session = Depends(get_db)):
+    """ Liefert den API-Key für die Anzeige in der WebUI """
+    return {"api_key": get_or_create_api_key(db)}
+
+@app.post("/api/settings/api-key/regenerate")
+def regenerate_api_key(db: Session = Depends(get_db)):
+    """ Erzeugt einen neuen API-Key, der alte wird sofort ungültig """
+    return {"api_key": _set_api_key(db)}
+
+def normalize_relative_path(raw: str) -> str:
+    """ Wandelt z.B. 'v2\\teil.stl' in 'v2/teil.stl' um und lehnt alles ab,
+    was aus dem Projektordner ausbrechen könnte ('..', absolute Pfade, Laufwerke). """
+    parts = [p for p in raw.replace("\\", "/").split("/") if p not in ("", ".")]
+    if not parts or raw.startswith(("/", "\\")):
+        raise HTTPException(status_code=400, detail=f"Ungültiger Dateipfad: '{raw}'")
+    for part in parts:
+        if part == ".." or ":" in part or "\x00" in part:
+            raise HTTPException(status_code=400, detail=f"Ungültiger Dateipfad: '{raw}'")
+    return "/".join(parts)
+
+def folder_is_taken(db: Session, folder: str) -> bool:
+    # Mehrere Titel können auf denselben Ordner abgebildet werden ("Projekt 1" / "Projekt_1"),
+    # deshalb vergleichen wir die Ordnernamen und nicht nur die Titel.
+    if (UPLOAD_DIR / folder).exists():
+        return True
+    return any(safe_folder_name(t) == folder for (t,) in db.query(Project.internal_title).all())
+
+@app.get("/api/import/check")
+def import_check(title: str | None = None, db: Session = Depends(get_db), _: None = Depends(require_api_key)):
+    """ Verbindungs- und Key-Test für Skripte. Mit ?title=... zusätzlich: gibt es das Projekt schon? """
+    result = {"ok": True}
+    if title is not None:
+        result["exists"] = folder_is_taken(db, safe_folder_name(title.strip()))
+    return result
+
+@app.post("/api/import", status_code=201)
+def import_project(
+    title: str = Form(...),
+    files: list[UploadFile] = File(...),
+    paths: list[str] | None = Form(None),
+    status: str | None = Form(None),
+    tags: str | None = Form(None),
+    category: str | None = Form(None),
+    on_conflict: Literal["skip", "suffix"] = Form("skip"),
+    db: Session = Depends(get_db),
+    _: None = Depends(require_api_key),
+):
+    """ Legt in einem Schritt ein komplettes Projekt inkl. Dateien an.
+    'paths' enthält pro Datei den relativen Pfad im Projekt (Unterordner bleiben erhalten). """
+    title = title.strip()
+    if not title:
+        raise HTTPException(status_code=400, detail="Titel fehlt")
+
+    if paths is not None and len(paths) != len(files):
+        raise HTTPException(status_code=400, detail="Anzahl von 'paths' und 'files' stimmt nicht überein")
+    relative_paths = [normalize_relative_path(p) for p in (paths or [f.filename or "" for f in files])]
+    if len(set(p.lower() for p in relative_paths)) != len(relative_paths):
+        raise HTTPException(status_code=400, detail="Doppelte Dateipfade im Upload")
+
+    # Konflikte: gleicher Ordner = gleiches Projekt. Nie in einen bestehenden Ordner schreiben!
+    final_title = title
+    if folder_is_taken(db, safe_folder_name(final_title)):
+        if on_conflict == "skip":
+            raise HTTPException(status_code=409, detail=f"Projekt '{title}' existiert bereits")
+        n = 2
+        while folder_is_taken(db, safe_folder_name(f"{title} ({n})")):
+            n += 1
+        final_title = f"{title} ({n})"
+
+    folder = safe_folder_name(final_title)
+    target_dir = UPLOAD_DIR / folder
+
+    # Erst komplett in einen Staging-Ordner schreiben, dann in einem Rutsch umbenennen.
+    # So entsteht nie ein halb befüllter Projektordner.
+    staging_dir = TEMP_DIR / f"import_{uuid.uuid4().hex}"
+    staging_root = staging_dir.resolve()
+    try:
+        staging_dir.mkdir(parents=True)
+        files_meta = []
+        for upload, rel in zip(files, relative_paths):
+            dest = (staging_dir / rel).resolve()
+            if not dest.is_relative_to(staging_root):
+                raise HTTPException(status_code=400, detail=f"Ungültiger Dateipfad: '{rel}'")
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            with open(dest, "wb") as out:
+                shutil.copyfileobj(upload.file, out)
+            files_meta.append({
+                "filename": rel,
+                "path": f"/uploads/{folder}/{quote(rel)}",
+                "size_mb": round(dest.stat().st_size / (1024 * 1024), 2),
+            })
+
+        staging_dir.rename(target_dir)
+    except Exception:
+        shutil.rmtree(staging_dir, ignore_errors=True)
+        raise
+
+    # Coverbild: das erste Bild, bevorzugt aus der obersten Ordnerebene
+    images = sorted(
+        (m["filename"] for m in files_meta if Path(m["filename"]).suffix.lower() in IMAGE_EXTENSIONS),
+        key=lambda rel: (rel.count("/"), rel.lower()),
+    )
+    cover_image = images[0] if images else None
+    if cover_image:
+        create_thumbnail(target_dir / cover_image)
+
+    try:
+        db_project = Project(
+            internal_title=final_title,
+            status=status or None,
+            tags=tags or None,
+            category=category or "Allgemein",
+            cover_image=cover_image,
+            files_json=json.dumps(files_meta),
+        )
+        db.add(db_project)
+        db.commit()
+        db.refresh(db_project)
+    except Exception as e:
+        db.rollback()
+        shutil.rmtree(target_dir, ignore_errors=True)
+        raise HTTPException(status_code=500, detail=f"Datenbankfehler: {str(e)}")
+
+    return {
+        "message": "Projekt erfolgreich importiert",
+        "project_id": db_project.id,
+        "title": final_title,
+        "folder": folder,
+        "files": len(files_meta),
+        "cover_image": cover_image,
+    }
 
 
 # WICHTIG: Die Frontend-Routen MÜSSEN ganz unten stehen!
